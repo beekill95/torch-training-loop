@@ -13,7 +13,7 @@ from ..callbacks import Callback
 from ..exceptions import StopTraining
 from ..types import TModel
 
-_LOGGER = logging.Logger('TrainingLoop')
+_LOGGER = logging.getLogger('TrainingLoop')
 _VAL_METRICS_PREFIX = 'val_'
 
 
