@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from copy import deepcopy
 import logging
 import numpy as np
