@@ -13,6 +13,7 @@ torch = "*"
 torcheval = "*"
 pandas = "*"
 numpy = "*"
+tqdm = "^4.66.1"
 
 
 [build-system]
