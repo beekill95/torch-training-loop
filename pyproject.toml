@@ -9,15 +9,22 @@ packages = [{include = "training_loop"}]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-torch = "*"
+torch = { version = "*", source = "torch-cpu" }
 torcheval = "*"
 pandas = "*"
 numpy = "*"
-tqdm = "^4.66.1"
+tqdm = "*"
 
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.2"
+pytest-mock = "^3.11.1"
+
+[[tool.poetry.source]]
+name = "torch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
+
 
 [build-system]
 requires = ["poetry-core"]
