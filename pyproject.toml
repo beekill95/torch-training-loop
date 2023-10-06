@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "training-loop"
+version = "0.1.0"
+description = "Simple Keras-like Training Loop for Pytorch."
+authors = ["beekill <nguyenmbquan95@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "training_loop"}]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+torch = "*"
+torcheval = "*"
+pandas = "*"
+numpy = "*"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
