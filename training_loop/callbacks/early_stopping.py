@@ -58,11 +58,13 @@ class EarlyStopping(Callback[nn.Module]):
 
         value = logs[self._monitor]
         if self._is_better_than_best_value(value):
-            assert self.model is not None
-
             self._wait = 0
             self._best_value = value
-            self._best_weights = deepcopy(self.model.state_dict())
+
+            # No need to save the best weights if we're not gonna use it!
+            if self._restore_best_weights:
+                assert self.model is not None
+                self._best_weights = deepcopy(self.model.state_dict())
         else:
             self._wait += 1
 
