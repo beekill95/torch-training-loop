@@ -75,7 +75,7 @@ class TrainingLoop(Generic[TModel], abc.ABC):
         Returns: (pd.DataFrame, pd.DataFrame)
             A tuple of pandas dataframes containing training and validation history
             (i.e, the metrics results after each batch and epoch), respectively.
-            The key of each dataframe is (epoch, batch). Rows with batch = None are 
+            The key of each dataframe is (epoch, batch). Rows with batch = None are
             the metrics/losses for the whole epochs.
         """
         train_history = []
