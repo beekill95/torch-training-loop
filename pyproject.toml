@@ -14,6 +14,7 @@ torcheval = "*"
 pandas = "*"
 numpy = "*"
 tqdm = "*"
+tensorboard = "*"
 
 
 [tool.poetry.group.dev.dependencies]

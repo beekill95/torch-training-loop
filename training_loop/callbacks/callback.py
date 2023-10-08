@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Generic
+from typing import Generic, Literal
 
 from ..exceptions import StopTraining
 from ..types import TModel
@@ -18,7 +18,16 @@ class Callback(Generic[TModel]):
     def model(self):
         return self._model
 
-    def on(self, event: str, **kwargs):
+    def on(self, event: Literal[
+        'training_begin',
+        'training_end',
+        'epoch_begin',
+        'epoch_end',
+        'train_batch_begin',
+        'train_batch_end',
+        'val_batch_begin',
+        'val_batch_end',
+    ], **kwargs):
         handlers = {
             'training_begin': self.on_training_begin,
             'training_end': self.on_training_end,
