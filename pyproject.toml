@@ -5,7 +5,7 @@ description = "Simple Keras-like Training Loop for Pytorch."
 authors = ["beekill <nguyenmbquan95@gmail.com>"]
 license = "MIT"
 readme = "README.md"
-packages = [{include = "training_loop"}]
+packages = [{include = "training_loop", from = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.8"
