@@ -7,7 +7,7 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
-from typing import Any, Generic
+from typing import Generic, TypeVar
 
 from ..callbacks import Callback
 from ..exceptions import StopTraining
@@ -16,8 +16,10 @@ from ..types import TModel
 _LOGGER = logging.getLogger('TrainingLoop')
 _VAL_METRICS_PREFIX = 'val_'
 
+TData = TypeVar('TData')
 
-class TrainingLoop(Generic[TModel], abc.ABC):
+
+class TrainingLoop(Generic[TModel, TData], abc.ABC):
 
     def __init__(
         self,
@@ -75,7 +77,7 @@ class TrainingLoop(Generic[TModel], abc.ABC):
         Returns: (pd.DataFrame, pd.DataFrame)
             A tuple of pandas dataframes containing training and validation history
             (i.e, the metrics results after each batch and epoch), respectively.
-            The key of each dataframe is (epoch, batch). Rows with batch = None are
+            The key of each dataframe is (epoch, batch). Rows with batch = -1 are
             the metrics/losses for the whole epochs.
         """
         train_history = []
@@ -89,16 +91,16 @@ class TrainingLoop(Generic[TModel], abc.ABC):
 
         total_batches = len(train_dataloader) + len(val_dataloader) + 1
 
-        for epoch in range(epochs):
+        for epoch in range(1, epochs + 1):
             # Start an epoch.
             self._handle(callbacks, 'epoch_begin', epoch=epoch)
             self.reset_train_metrics()
             self.reset_val_metrics()
 
             dataloader = chain(
-                enumerate(train_dataloader),
+                enumerate(train_dataloader, start=1),
                 _train_dataloader_separator(),
-                enumerate(val_dataloader),
+                enumerate(val_dataloader, start=1),
             )
 
             # Display progress bar.
@@ -135,12 +137,18 @@ class TrainingLoop(Generic[TModel], abc.ABC):
                 progress_bar.set_postfix(logs)
 
                 # Record progress history.
-                history = train_history if is_training else val_history
-                history.append({
-                    **logs,
-                    'batch': batch,
-                    'epoch': epoch,
-                })
+                if is_training:
+                    train_history.append({
+                        **logs,
+                        'batch': batch,
+                        'epoch': epoch,
+                    })
+                else:
+                    val_history.append({
+                        **logs,
+                        'val_batch': batch,
+                        'val_epoch': epoch,
+                    })
 
             # End epoch.
             logs = {
@@ -159,18 +167,18 @@ class TrainingLoop(Generic[TModel], abc.ABC):
             train_history.append({
                 **{
                     k: v
-                    for k, v in logs.items() if ~k.startswith(_VAL_METRICS_PREFIX)
+                    for k, v in logs.items() if not k.startswith(_VAL_METRICS_PREFIX)
                 },
                 'epoch': epoch,
-                'batch': None,
+                'batch': -1,
             })
             val_history.append({
                 **{
                     k: v
                     for k, v in logs.items() if k.startswith(_VAL_METRICS_PREFIX)
                 },
-                'epoch': epoch,
-                'batch': None,
+                'val_epoch': epoch,
+                'val_batch': -1,
             })
 
             # Stop training if a signal was raised.
@@ -181,12 +189,17 @@ class TrainingLoop(Generic[TModel], abc.ABC):
                 break
 
         self._handle(callbacks, 'training_end')
-        return tuple(
-            pd.DataFrame(history).set_index(['epoch', 'batch'], drop=False)
-            for history in [train_history, val_history])
+
+        return (pd.DataFrame(train_history).set_index(
+            ['epoch', 'batch'],
+            drop=False,
+        ), pd.DataFrame(val_history).set_index(
+            ['val_epoch', 'val_batch'],
+            drop=False,
+        ))
 
     @abc.abstractmethod
-    def train_step(self, data: Any) -> dict[str, float]:
+    def train_step(self, data: TData) -> dict[str, float]:
         """
         Perform one train step over the given data. Subclasses
         should implement this method to perform feed-forward
@@ -205,7 +218,7 @@ class TrainingLoop(Generic[TModel], abc.ABC):
 
     @abc.abstractmethod
     @torch.no_grad()
-    def val_step(self, data: Any) -> dict[str, float]:
+    def val_step(self, data: TData) -> dict[str, float]:
         """
         Perform one validation over the given data. Subclasses
         should implement this method to perform feed-forward
