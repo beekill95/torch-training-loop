@@ -14,6 +14,7 @@ from ..types import TModel
 TLossFn = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
 TLoss = Union[TLossFn, Sequence[TLossFn], Dict[str, Union[TLossFn,
                                                           Sequence[TLossFn]]]]
+TLossWeights = Union[Sequence[float], Dict[str, Union[float, Sequence[float]]]]
 
 # Metrics.
 NamedMetric = Tuple[str, Metric[torch.Tensor]]
@@ -57,6 +58,7 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
         *,
         optimizer_fn: TOptimFn,
         loss: TLoss,
+        loss_weights: TLossWeights | None = None,
         metrics: TMetrics | None = None,
         device: str | torch.device = 'cpu',
     ) -> None:
@@ -83,10 +85,20 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
                     be a mapping. The corresponding values in each dictionary must
                     follow the above rules.
 
+            loss_weights (optional): Weights given to each loss in the case multiple
+                loss functions:
+                    * If `loss_weights` is None, it means that each loss will have the
+                    same weight = 1.
+                    * If `loss` is a sequence of functions, then `loss_weights` must
+                    be a sequence of weights of the same length.
+                    * If `loss` is a dictionary, then `loss_weights` must also be
+                    a dictionary.
+
             metrics: Metrics to monitor training/validation progress.
 
                 Similar to the loss functions, these metrics must follow these
                 constraints:
+                    TODO
 
             device: The specified device to train the model on, default to 'cpu'.
         """
@@ -94,6 +106,7 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
 
         self._optim = optimizer_fn(self.model.parameters())
         self._loss_fn = loss
+        self._loss_weights = loss_weights
 
         self._train_metrics = metrics
         self._val_metrics = _clone_metrics(metrics)
@@ -183,6 +196,7 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
 
         # Calculate the loss and update metrics.
         loss = _calc_loss(self._loss_fn,
+                          self._loss_weights,
                           y_pred=y_pred,
                           y_true=y,
                           sample_weights=sample_weights)
@@ -257,6 +271,7 @@ def _transfer_data(data: TInputs, device: str | torch.device) -> TInputs:
 
 def _calc_loss(
     loss_fns: TLoss,
+    loss_weights: TLossWeights | None,
     *,
     y_pred: TOutputs,
     y_true: TOutputs,
@@ -267,6 +282,7 @@ def _calc_loss(
 
     Parameters:
         loss_fns: Loss functions.
+        loss_weights (optional): Weight given to each loss function.
         y_pred: Predicted outputs, must have the same data structure as `y_true`
         and `sample_weights` (if exists).
         y_true: True outputs, must have the same data structure as `y_pred`
@@ -289,7 +305,7 @@ def _calc_loss(
             rules above.
     """
 
-    def calc_loss(loss_fn, *, input, target, weight):
+    def calc_a_single_loss(loss_fn, *, input, target, weight):
         # Loss functions in Torch expect input first, and then target.
         loss = loss_fn(input, target)
 
@@ -298,15 +314,54 @@ def _calc_loss(
         else:
             return torch.sum(loss * weight) / torch.sum(weight)
 
+    def weighted_sum(
+        losses: Sequence[float] | dict[str, float],
+        weights: Sequence[float] | dict[str, float | Sequence[float]] | None,
+    ):
+        if isinstance(losses, Sequence):
+            if weights is None:
+                return sum(losses) / float(len(losses))
+            elif isinstance(weights, Sequence):
+                total_loss = 0.
+                total_weight = 0.
+
+                for loss, weight in zip(losses, weights, strict=True):
+                    total_loss += loss * weight
+                    total_weight += weight
+
+                return total_loss / total_weight
+        else:
+            if weights is None:
+                return sum(losses.values()) / float(len(losses))
+            elif isinstance(weights, dict):
+                total_loss = 0.
+                total_weight = 0.
+
+                for key in losses.keys():
+                    w = weights[key]
+                    w = w if isinstance(w, float) else sum(w)
+                    total_loss += losses[key] * w
+                    total_weight += w
+
+                return total_loss / total_weight
+
+        raise ValueError('Incomptible type between losses and loss weights.\n'
+                         f'Loss = {losses}\nLoss weights = {weights}.')
+
     if isinstance(loss_fns, dict):
-        losses = (_calc_loss(
-            loss_fns[key],
-            y_pred=y_pred[key],
-            y_true=y_true[key],
-            sample_weights=None
-            if sample_weights is None else sample_weights[key],
-        ) for key in loss_fns.keys())
-        return sum(losses)
+        losses = {
+            key:
+            _calc_loss(
+                loss_fns[key],
+                loss_weights[key],
+                y_pred=y_pred[key],
+                y_true=y_true[key],
+                sample_weights=None
+                if sample_weights is None else sample_weights[key],
+            )
+            for key in loss_fns.keys()
+        }
+        return weighted_sum(losses, loss_weights)
 
     elif isinstance(loss_fns, Sequence):
         if isinstance(y_pred, Sequence):
@@ -320,29 +375,30 @@ def _calc_loss(
                                                              sample_weights,
                                                              strict=True):
                 losses.append(
-                    calc_loss(loss_fn,
-                              input=input,
-                              target=target,
-                              weight=sample_weight))
+                    calc_a_single_loss(loss_fn,
+                                       input=input,
+                                       target=target,
+                                       weight=sample_weight))
 
         elif isinstance(y_pred, torch.Tensor):
             losses = [
-                calc_loss(loss_fn,
-                          input=y_pred,
-                          target=y_true,
-                          weight=sample_weights) for loss_fn in loss_fns
+                calc_a_single_loss(loss_fn,
+                                   input=y_pred,
+                                   target=y_true,
+                                   weight=sample_weights)
+                for loss_fn in loss_fns
             ]
         else:
             raise ValueError(
                 f'Unsupported output type for loss calculation: {y_pred}')
 
-        return sum(losses) / float(len(losses))
+        return weighted_sum(losses, loss_weights)
 
     else:
-        return calc_loss(loss_fns,
-                         input=y_pred,
-                         target=y_true,
-                         weight=sample_weights)
+        return calc_a_single_loss(loss_fns,
+                                  input=y_pred,
+                                  target=y_true,
+                                  weight=sample_weights)
 
 
 # Metrics-Related Functions.
