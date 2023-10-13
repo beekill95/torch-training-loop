@@ -463,11 +463,9 @@ def _update_metrics(
                 metric.update(y_pred, y_true)
         elif isinstance(y_true, Sequence):
             assert isinstance(y_pred, Sequence)
+            assert len(metrics) == len(y_true) == len(y_pred)
 
-            for (_, metric), target, pred in zip(metrics,
-                                                 y_true,
-                                                 y_pred,
-                                                 strict=True):
+            for (_, metric), target, pred in zip(metrics, y_true, y_pred):
                 metric.update(pred, target)
         else:
             raise ValueError(
@@ -490,7 +488,7 @@ def _compute_metrics(metrics: TMetrics) -> dict[str, float]:
     elif isinstance(metrics, dict):
         results = [{
             f'{key}_{name}': value
-            for name, value in _compute_metrics(submetrics)
+            for name, value in _compute_metrics(submetrics).items()
         } for key, submetrics in metrics.items()]
 
         return dict(ChainMap(*results))
