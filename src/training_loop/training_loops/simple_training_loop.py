@@ -109,7 +109,7 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
         self._loss_weights = loss_weights
 
         self._train_metrics = metrics
-        self._val_metrics = _clone_metrics(metrics)
+        self._val_metrics = clone_metrics(metrics)
 
         self._total_train_loss = 0.
         self._nb_train_batches = 0
@@ -195,11 +195,11 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
         y_pred = self.model(X)
 
         # Calculate the loss and update metrics.
-        loss = _calc_loss(self._loss_fn,
-                          self._loss_weights,
-                          y_pred=y_pred,
-                          y_true=y,
-                          sample_weights=sample_weights)
+        loss = calc_loss(self._loss_fn,
+                         self._loss_weights,
+                         y_pred=y_pred,
+                         y_true=y,
+                         sample_weights=sample_weights)
 
         return loss, y_pred, y
 
@@ -207,33 +207,33 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
     def reset_train_metrics(self):
         self._total_train_loss = 0.0
         self._nb_train_batches = 0
-        _reset_metrics(self._train_metrics)
+        reset_metrics(self._train_metrics)
 
     @torch.no_grad()
     def reset_val_metrics(self):
         self._total_val_loss = 0.0
         self._nb_val_batches = 0
-        _reset_metrics(self._val_metrics)
+        reset_metrics(self._val_metrics)
 
     @torch.no_grad()
     def compute_train_metrics(self) -> dict[str, float]:
         return {
             'loss': self._total_train_loss / self._nb_train_batches,
-            **_compute_metrics(self._train_metrics),
+            **compute_metrics(self._train_metrics),
         }
 
     @torch.no_grad()
     def compute_val_metrics(self) -> dict[str, float]:
         return {
             'loss': self._total_val_loss / self._nb_val_batches,
-            **_compute_metrics(self._val_metrics),
+            **compute_metrics(self._val_metrics),
         }
 
     def _transfer_to_device(self, data: TSimpleData) -> TSimpleData:
-        _transfer_data(data[0], self.device)
-        _transfer_data(data[1], self.device)
+        transfer_data(data[0], self.device)
+        transfer_data(data[1], self.device)
         if len(data) == 3:
-            _transfer_data(data[2], self.device)
+            transfer_data(data[2], self.device)
 
         return data
 
@@ -243,7 +243,7 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
                               y_true: torch.Tensor) -> None:
         self._total_train_loss += train_loss.detach().cpu().item()
         self._nb_train_batches += 1
-        _update_metrics(self._train_metrics, y_pred=y_pred, y_true=y_true)
+        update_metrics(self._train_metrics, y_pred=y_pred, y_true=y_true)
 
     @torch.no_grad()
     def _update_val_metrics(self, *, val_loss: torch.Tensor,
@@ -251,10 +251,10 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
                             y_true: torch.Tensor) -> None:
         self._total_val_loss += val_loss.detach().cpu().item()
         self._nb_val_batches += 1
-        _update_metrics(self._val_metrics, y_pred=y_pred, y_true=y_true)
+        update_metrics(self._val_metrics, y_pred=y_pred, y_true=y_true)
 
 
-def _transfer_data(data: TInputs, device: str | torch.device) -> TInputs:
+def transfer_data(data: TInputs, device: str | torch.device) -> TInputs:
     if isinstance(data, torch.Tensor):
         data.to(device)
     elif isinstance(data, Sequence):
@@ -269,19 +269,20 @@ def _transfer_data(data: TInputs, device: str | torch.device) -> TInputs:
     return data
 
 
-def _calc_loss(
+def calc_loss(
     loss_fns: TLoss,
-    loss_weights: TLossWeights | None,
     *,
     y_pred: TOutputs,
     y_true: TOutputs,
     sample_weights: TSampleWeights | None,
+    loss_weights: TLossWeights | None,
 ) -> torch.Tensor:
     """
     Calculate loss function.
 
     Parameters:
-        loss_fns: Loss functions.
+        loss_fns: Loss functions. Each loss function should return a single-element
+        tensor for each sample in the batch.
         loss_weights (optional): Weight given to each loss function.
         y_pred: Predicted outputs, must have the same data structure as `y_true`
         and `sample_weights` (if exists).
@@ -306,6 +307,10 @@ def _calc_loss(
     """
 
     def calc_a_single_loss(loss_fn, *, input, target, weight):
+        assert isinstance(input, torch.Tensor) and isinstance(
+            target, torch.Tensor) and (weight is None
+                                       or isinstance(weight, torch.Tensor))
+
         # Loss functions in Torch expect input first, and then target.
         loss = loss_fn(input, target)
 
@@ -314,7 +319,7 @@ def _calc_loss(
         else:
             return torch.sum(loss * weight) / torch.sum(weight)
 
-    def weighted_sum(
+    def weighted_average(
         losses: Sequence[float] | dict[str, float],
         weights: Sequence[float] | dict[str, float | Sequence[float]] | None,
     ):
@@ -351,9 +356,9 @@ def _calc_loss(
     if isinstance(loss_fns, dict):
         losses = {
             key:
-            _calc_loss(
+            calc_loss(
                 loss_fns[key],
-                loss_weights[key],
+                loss_weights[key] if loss_weights is not None else None,
                 y_pred=y_pred[key],
                 y_true=y_true[key],
                 sample_weights=None
@@ -361,7 +366,7 @@ def _calc_loss(
             )
             for key in loss_fns.keys()
         }
-        return weighted_sum(losses, loss_weights)
+        return weighted_average(losses, loss_weights)
 
     elif isinstance(loss_fns, Sequence):
         if isinstance(y_pred, Sequence):
@@ -381,6 +386,9 @@ def _calc_loss(
                                        weight=sample_weight))
 
         elif isinstance(y_pred, torch.Tensor):
+            # TODO: in this case, can the sample weights be a sequence?
+            # If it is, then we can have different sample weights for each loss function.
+            # Should we allow it?
             losses = [
                 calc_a_single_loss(loss_fn,
                                    input=y_pred,
@@ -392,7 +400,7 @@ def _calc_loss(
             raise ValueError(
                 f'Unsupported output type for loss calculation: {y_pred}')
 
-        return weighted_sum(losses, loss_weights)
+        return weighted_average(losses, loss_weights)
 
     else:
         return calc_a_single_loss(loss_fns,
@@ -402,12 +410,12 @@ def _calc_loss(
 
 
 # Metrics-Related Functions.
-def _clone_metrics(metrics: TMetrics) -> TMetrics:
+def clone_metrics(metrics: TMetrics) -> TMetrics:
     if isinstance(metrics, list):
         return [(name, clone_metric(metric)) for name, metric in metrics]
     elif isinstance(metrics, dict):
         return {
-            key: _clone_metrics(submetrics)
+            key: clone_metrics(submetrics)
             for key, submetrics in metrics.items()
         }
     else:
@@ -415,18 +423,18 @@ def _clone_metrics(metrics: TMetrics) -> TMetrics:
         return name, clone_metric(metric)
 
 
-def _reset_metrics(metrics: TMetrics) -> None:
+def reset_metrics(metrics: TMetrics) -> None:
     if isinstance(metrics, list):
         for _, metric in metrics:
             metric.reset()
     elif isinstance(metrics, dict):
         for _, submetrics in metrics.items():
-            _reset_metrics(submetrics)
+            reset_metrics(submetrics)
     else:
         metrics[1].reset()
 
 
-def _update_metrics(
+def update_metrics(
     metrics: TMetrics,
     *,
     y_pred: TOutputs,
@@ -454,7 +462,7 @@ def _update_metrics(
         assert isinstance(y_true, dict) and isinstance(y_pred, dict)
 
         for key, submetrics in metrics.items():
-            _update_metrics(submetrics, y_true=y_true[key], y_pred=y_pred[key])
+            update_metrics(submetrics, y_true=y_true[key], y_pred=y_pred[key])
     elif isinstance(metrics, list):
         if isinstance(y_true, torch.Tensor):
             assert isinstance(y_pred, torch.Tensor)
@@ -478,7 +486,7 @@ def _update_metrics(
         metrics[1].update(y_pred, y_true)
 
 
-def _compute_metrics(metrics: TMetrics) -> dict[str, float]:
+def compute_metrics(metrics: TMetrics) -> dict[str, float]:
 
     def compute(metric: Metric[torch.Tensor]):
         return metric.compute().detach().cpu().item()
@@ -488,7 +496,7 @@ def _compute_metrics(metrics: TMetrics) -> dict[str, float]:
     elif isinstance(metrics, dict):
         results = [{
             f'{key}_{name}': value
-            for name, value in _compute_metrics(submetrics).items()
+            for name, value in compute_metrics(submetrics).items()
         } for key, submetrics in metrics.items()]
 
         return dict(ChainMap(*results))

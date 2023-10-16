@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import numpy as np
 import pytest
 import torch
 from torcheval.metrics import Metric
 from training_loop.training_loops.simple_training_loop import (
     SimpleTrainingLoop,
-    _clone_metrics,
-    _compute_metrics,
-    _transfer_data,
-    _reset_metrics,
-    _update_metrics,
+    calc_loss,
+    clone_metrics,
+    compute_metrics,
+    transfer_data,
+    reset_metrics,
+    update_metrics,
 )
 from unittest.mock import MagicMock, call, patch
 
@@ -21,7 +23,7 @@ class TestTransferData:
 
     def test_transfer_single_tensor(self):
         tensor = self.create_fake_tensor()
-        _transfer_data(tensor, 'cuda')
+        transfer_data(tensor, 'cuda')
         tensor.to.assert_called_once_with('cuda')
 
     def test_transfer_list_of_tensors(self):
@@ -30,7 +32,7 @@ class TestTransferData:
             self.create_fake_tensor(),
             self.create_fake_tensor(),
         ]
-        _transfer_data(tensors, 'cuda')
+        transfer_data(tensors, 'cuda')
         for tensor in tensors:
             tensor.to.assert_called_once_with('cuda')
 
@@ -40,7 +42,7 @@ class TestTransferData:
             self.create_fake_tensor(),
             self.create_fake_tensor(),
         )
-        _transfer_data(tensors, 'cuda')
+        transfer_data(tensors, 'cuda')
         for tensor in tensors:
             tensor.to.assert_called_once_with('cuda')
 
@@ -50,7 +52,7 @@ class TestTransferData:
             'input2': self.create_fake_tensor(),
             'input3': self.create_fake_tensor(),
         }
-        _transfer_data(tensors, 'cuda')
+        transfer_data(tensors, 'cuda')
         for tensor in tensors.values():
             tensor.to.assert_called_once_with('cuda')
 
@@ -67,7 +69,7 @@ class TestMetricsUtilities:
                 'training_loop.training_loops.simple_training_loop.clone_metric'
         ) as clone_metric:
             clone_metric.return_value = metric[1]
-            results = _clone_metrics(metric)
+            results = clone_metrics(metric)
             clone_metric.assert_called_once_with(metric[1])
 
             assert results == metric
@@ -84,7 +86,7 @@ class TestMetricsUtilities:
         ) as clone_metric:
             clone_metric.side_effect = lambda x: x
 
-            results = _clone_metrics(metrics)
+            results = clone_metrics(metrics)
             clone_metric.assert_has_calls([
                 call(metrics[0][1]),
                 call(metrics[1][1]),
@@ -108,7 +110,7 @@ class TestMetricsUtilities:
         ) as clone_metric:
             clone_metric.side_effect = lambda x: x
 
-            results = _clone_metrics(metrics)
+            results = clone_metrics(metrics)
             clone_metric.assert_has_calls([
                 call(metrics['fake1'][0][1]),
                 call(metrics['fake1'][1][1]),
@@ -121,7 +123,7 @@ class TestMetricsUtilities:
     # Test _reset_metrics()
     def test_reset_single_metric(self):
         metric = self.create_fake_metric()
-        _reset_metrics(('fake_metric', metric))
+        reset_metrics(('fake_metric', metric))
         metric.reset.assert_called_once()
 
     def test_reset_list_of_metrics(self):
@@ -131,7 +133,7 @@ class TestMetricsUtilities:
             ('fake3', self.create_fake_metric()),
             ('fake4', self.create_fake_metric()),
         ]
-        _reset_metrics(metrics)
+        reset_metrics(metrics)
         for _, metric in metrics:
             metric.reset.assert_called_once()
 
@@ -141,7 +143,7 @@ class TestMetricsUtilities:
                       ('fake1.2', self.create_fake_metric())],
             'fake2': ('fake2.1', self.create_fake_metric()),
         }
-        _reset_metrics(metrics)
+        reset_metrics(metrics)
         for _, metric in metrics['fake1']:
             metric.reset.assert_called_once()
 
@@ -154,7 +156,7 @@ class TestMetricsUtilities:
         y_true = [torch.ones((1, )) * 4, torch.ones((1, )) * 5]
 
         with pytest.raises(AssertionError):
-            _update_metrics(metric, y_pred=y_pred, y_true=y_true)
+            update_metrics(metric, y_pred=y_pred, y_true=y_true)
 
     def test_update_single_metric_dict_outputs(self):
         metric = ('fake', self.create_fake_metric())
@@ -162,14 +164,14 @@ class TestMetricsUtilities:
         y_true = {'out1': torch.ones((1, )) * 4, 'out2': torch.ones((1, )) * 5}
 
         with pytest.raises(AssertionError):
-            _update_metrics(metric, y_pred=y_pred, y_true=y_true)
+            update_metrics(metric, y_pred=y_pred, y_true=y_true)
 
     def test_update_single_metric_single_output(self):
         metric = ('fake', self.create_fake_metric())
         y_pred = torch.ones((1, )) * 2
         y_true = torch.ones((1, )) * 3
 
-        _update_metrics(metric, y_pred=y_pred, y_true=y_true)
+        update_metrics(metric, y_pred=y_pred, y_true=y_true)
         metric[1].update.assert_called_once_with(y_pred, y_true)
 
     def test_update_list_metrics_single_output(self):
@@ -182,7 +184,7 @@ class TestMetricsUtilities:
 
         y_pred = torch.ones((1, )) * 2
         y_true = torch.ones((1, )) * 3
-        _update_metrics(metrics, y_pred=y_pred, y_true=y_true)
+        update_metrics(metrics, y_pred=y_pred, y_true=y_true)
 
         for _, metric in metrics:
             metric.update.assert_called_once_with(y_pred, y_true)
@@ -198,7 +200,7 @@ class TestMetricsUtilities:
         y_pred = [torch.ones((1, )) * 2, torch.ones((1, )) * 3]
         y_true = [torch.ones((1, )) * 4, torch.ones((1, )) * 5]
         with pytest.raises(AssertionError):
-            _update_metrics(metrics, y_pred=y_pred, y_true=y_true)
+            update_metrics(metrics, y_pred=y_pred, y_true=y_true)
 
     def test_update_list_metrics_list_outputs(self):
         metrics = [
@@ -221,7 +223,7 @@ class TestMetricsUtilities:
             torch.ones((1, )) * 9
         ]
 
-        _update_metrics(metrics, y_pred=y_pred, y_true=y_true)
+        update_metrics(metrics, y_pred=y_pred, y_true=y_true)
 
         for (_, metric), yp, yt in zip(metrics, y_pred, y_true):
             metric.update.assert_called_once_with(yp, yt)
@@ -244,7 +246,7 @@ class TestMetricsUtilities:
             torch.ones((1, )) * 7,
         )
 
-        _update_metrics(metrics, y_pred=y_pred, y_true=y_true)
+        update_metrics(metrics, y_pred=y_pred, y_true=y_true)
 
         for (_, metric), yp, yt in zip(metrics, y_pred, y_true):
             metric.update.assert_called_once_with(yp, yt)
@@ -259,7 +261,7 @@ class TestMetricsUtilities:
         y_true = torch.ones((1, )) * 3
 
         with pytest.raises(AssertionError):
-            _update_metrics(metrics, y_pred=y_pred, y_true=y_true)
+            update_metrics(metrics, y_pred=y_pred, y_true=y_true)
 
     def test_update_dict_metrics_list_outputs(self):
         metrics = {
@@ -271,7 +273,7 @@ class TestMetricsUtilities:
         y_true = [torch.ones((1, )) * 3, torch.ones((1, )) * 4]
 
         with pytest.raises(AssertionError):
-            _update_metrics(metrics, y_pred=y_pred, y_true=y_true)
+            update_metrics(metrics, y_pred=y_pred, y_true=y_true)
 
     def test_update_dict_metrics_dict_of_single_outputs(self):
         metrics = {
@@ -288,7 +290,7 @@ class TestMetricsUtilities:
             'fake2': torch.ones((1, )) * 4
         }
 
-        _update_metrics(metrics, y_pred=y_pred, y_true=y_true)
+        update_metrics(metrics, y_pred=y_pred, y_true=y_true)
 
         metrics['fake1'][0][1].update.assert_called_once_with(
             y_pred['fake1'], y_true['fake1'])
@@ -324,7 +326,7 @@ class TestMetricsUtilities:
         }
 
         with pytest.raises(AssertionError):
-            _update_metrics(metrics, y_pred=y_pred, y_true=y_true)
+            update_metrics(metrics, y_pred=y_pred, y_true=y_true)
 
     def test_update_dict_metrics_dict_of_sequence_outputs(self):
         metrics = {
@@ -347,7 +349,7 @@ class TestMetricsUtilities:
             'fake2': torch.ones((1, )) * 4
         }
 
-        _update_metrics(metrics, y_pred=y_pred, y_true=y_true)
+        update_metrics(metrics, y_pred=y_pred, y_true=y_true)
 
         metrics['fake1'][0][1].update.assert_called_once_with(
             y_pred['fake1'][0], y_true['fake1'][0])
@@ -360,7 +362,7 @@ class TestMetricsUtilities:
     def test_compute_single_metric(self):
         metric = ('fake', self.create_fake_metric())
         metric[1].compute.return_value = torch.ones((1, )) * 0.58
-        results = _compute_metrics(metric)
+        results = compute_metrics(metric)
 
         assert pytest.approx(results) == {'fake': 0.58}
 
@@ -376,7 +378,7 @@ class TestMetricsUtilities:
         metrics[2][1].compute.return_value = torch.ones((1, )) * 0.3
         metrics[3][1].compute.return_value = torch.ones((1, )) * 0.4
 
-        results = _compute_metrics(metrics)
+        results = compute_metrics(metrics)
         assert pytest.approx(results) == {
             'fake1': 0.1,
             'fake2': 0.2,
@@ -395,7 +397,7 @@ class TestMetricsUtilities:
         metrics['fake1'][1][1].compute.return_value = torch.ones((1, )) * 0.2
         metrics['fake2'][1].compute.return_value = torch.ones((1, )) * 0.3
 
-        results = _compute_metrics(metrics)
+        results = compute_metrics(metrics)
         assert pytest.approx(results) == {
             'fake1_fake1.1': 0.1,
             'fake1_fake1.2': 0.2,
