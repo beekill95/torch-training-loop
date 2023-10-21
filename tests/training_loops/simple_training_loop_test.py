@@ -403,3 +403,216 @@ class TestMetricsUtilities:
             'fake1_fake1.2': 0.2,
             'fake2_fake2.1': 0.3,
         }
+
+
+class TestCalculatingLoss:
+
+    def create_spied_l1_loss_function(self):
+        return MagicMock(wraps=torch.nn.L1Loss(reduction='none'))
+
+    def create_spied_l2_loss_function(self):
+        return MagicMock(wraps=torch.nn.MSELoss(reduction='none'))
+
+    def test_calc_single_loss_no_sample_weights(self):
+        loss_fn = self.create_spied_l1_loss_function()
+
+        y_pred = torch.tensor(np.asarray([[1.], [2.]]))
+        y_true = torch.tensor(np.asarray([[3.], [5.]]))
+
+        loss = calc_loss(loss_fn,
+                         y_pred=y_pred,
+                         y_true=y_true,
+                         loss_weights=None,
+                         sample_weights=None)
+
+        loss_fn.assert_called_once_with(y_pred, y_true)
+        assert loss.item() == pytest.approx(2.5)
+
+    def test_calc_single_loss_with_sample_weights(self):
+        loss_fn = self.create_spied_l1_loss_function()
+
+        y_pred = torch.tensor(np.asarray([[1.], [2.]]))
+        y_true = torch.tensor(np.asarray([[3.], [5.]]))
+        sample_weights = torch.tensor(np.asarray([1., 3.]))
+
+        loss = calc_loss(loss_fn,
+                         y_pred=y_pred,
+                         y_true=y_true,
+                         loss_weights=None,
+                         sample_weights=sample_weights)
+
+        loss_fn.assert_called_once_with(y_pred, y_true)
+        assert loss.item() == pytest.approx(5.5)
+
+    def test_calc_list_losses_with_single_output_no_sample_weights(self):
+        loss_functions = [
+            self.create_spied_l1_loss_function(),
+            self.create_spied_l2_loss_function()
+        ]
+
+        y_pred = torch.tensor(np.asarray([[1., 2.], [1., 1.]]))
+        y_true = torch.tensor(np.asarray([[5., 5.], [1., 1.]]))
+
+        loss = calc_loss(loss_functions,
+                         y_pred=y_pred,
+                         y_true=y_true,
+                         sample_weights=None,
+                         loss_weights=None)
+
+        for loss_fn in loss_functions:
+            loss_fn.assert_called_once_with(y_pred, y_true)
+
+        l1_loss_mean = (4. + 3. + 0. + 0.) / 4
+        l2_loss_mean = (16. + 9. + 0. + 0.) / 4
+        assert loss.item() == pytest.approx((l1_loss_mean + l2_loss_mean) / 2.)
+
+    def test_calc_list_losses_with_single_output_with_sample_weights(self):
+        loss_functions = [
+            self.create_spied_l1_loss_function(),
+            self.create_spied_l2_loss_function()
+        ]
+
+        y_pred = torch.tensor(np.asarray([[1., 2.], [1., 1.]]))
+        y_true = torch.tensor(np.asarray([[5., 5.], [1., 2.]]))
+        sample_weights = torch.tensor(np.asarray([1., 3.]))
+
+        loss = calc_loss(loss_functions,
+                         y_pred=y_pred,
+                         y_true=y_true,
+                         sample_weights=sample_weights,
+                         loss_weights=None)
+
+        for loss_fn in loss_functions:
+            loss_fn.assert_called_once_with(y_pred, y_true)
+
+        l1_loss_mean = (4. + 3. + 0. + 3.) / 4
+        l2_loss_mean = (16. + 9. + 0. + 3.) / 4
+        assert loss.item() == pytest.approx((l1_loss_mean + l2_loss_mean) / 2.)
+
+    def test_calc_list_losses_with_single_output_with_sample_weights_and_loss_weights(
+            self):
+        loss_functions = [
+            self.create_spied_l1_loss_function(),
+            self.create_spied_l2_loss_function()
+        ]
+
+        y_pred = torch.tensor(np.asarray([[1., 2.], [1., 1.]]))
+        y_true = torch.tensor(np.asarray([[5., 5.], [1., 2.]]))
+        sample_weights = torch.tensor(np.asarray([1., 3.]))
+        loss_weights = [2., 5.]
+
+        loss = calc_loss(loss_functions,
+                         y_pred=y_pred,
+                         y_true=y_true,
+                         sample_weights=sample_weights,
+                         loss_weights=loss_weights)
+
+        for loss_fn in loss_functions:
+            loss_fn.assert_called_once_with(y_pred, y_true)
+
+        l1_loss_mean = (4. + 3. + 0. + 3.) / 4
+        l2_loss_mean = (16. + 9. + 0. + 3.) / 4
+        assert loss.item() == pytest.approx(
+            (l1_loss_mean * 2. + l2_loss_mean * 5.) / (2. + 5.))
+
+    def test_calc_list_losses_with_different_multiple_outputs(self):
+        loss_functions = [
+            self.create_spied_l1_loss_function(),
+            self.create_spied_l2_loss_function()
+        ]
+
+        y_pred = (
+            torch.tensor(np.asarray([[1., 2.], [1., 1.]])),
+            torch.tensor(np.asarray([[2., 3.], [2., 2.]])),
+            torch.tensor(np.asarray([[3., 4.], [3., 3.]])),
+        )
+        y_true = (
+            torch.tensor(np.asarray([[5., 5.], [1., 2.]])),
+            torch.tensor(np.asarray([[6., 6.], [2., 3.]])),
+            torch.tensor(np.asarray([[7., 7.], [3., 4.]])),
+        )
+
+        with pytest.raises(AssertionError):
+            calc_loss(loss_functions,
+                      y_pred=y_pred,
+                      y_true=y_true,
+                      sample_weights=None,
+                      loss_weights=None)
+
+    def test_calc_list_losses_with_multiple_outputs(self):
+        loss_functions = [
+            self.create_spied_l1_loss_function(),
+            self.create_spied_l2_loss_function()
+        ]
+
+        y_pred = (
+            torch.tensor(np.asarray([[1., 2.], [1., 1.]])),
+            torch.tensor(np.asarray([[2., 3.], [2., 2.]])),
+        )
+        y_true = (
+            torch.tensor(np.asarray([[5., 5.], [1., 2.]])),
+            torch.tensor(np.asarray([[6., 7.], [2., 8.]])),
+        )
+        sample_weights = (
+            torch.tensor(np.asarray([1., 3.])),
+            torch.tensor(np.asarray([0.25, 0.5])),
+        )
+        loss_weights = [2., 5.]
+
+        loss = calc_loss(loss_functions,
+                         y_pred=y_pred,
+                         y_true=y_true,
+                         sample_weights=sample_weights,
+                         loss_weights=loss_weights)
+
+        l1_loss_mean = (4. + 3. + 0. + 3.) / 4
+        l2_loss_mean = (4. + 4. + 0. + 18.) / 4
+        assert loss.item() == pytest.approx(
+            (l1_loss_mean * 2. + l2_loss_mean * 5.) / (2. + 5.))
+
+    def test_calc_dict_losses_with_single_output(self):
+        loss_functions = dict(
+            l1=self.create_spied_l1_loss_function(),
+            l2=self.create_spied_l2_loss_function(),
+        )
+
+        y_pred = torch.tensor(np.asarray([[1., 2.], [1., 1.]]))
+        y_true = torch.tensor(np.asarray([[5., 5.], [1., 2.]]))
+
+        with pytest.raises(AssertionError):
+            calc_loss(loss_functions,
+                      y_pred=y_pred,
+                      y_true=y_true,
+                      sample_weights=None,
+                      loss_weights=None)
+
+    def test_calc_dict_losses_with_dict_outputs(self):
+        loss_functions = dict(
+            l1=self.create_spied_l1_loss_function(),
+            l2=self.create_spied_l2_loss_function(),
+        )
+
+        y_pred = {
+            'l1': torch.tensor(np.asarray([[1., 2.], [1., 1.]])),
+            'l2': torch.tensor(np.asarray([[2., 3.], [2., 2.]])),
+        }
+        y_true = {
+            'l1': torch.tensor(np.asarray([[5., 5.], [1., 2.]])),
+            'l2': torch.tensor(np.asarray([[6., 7.], [2., 8.]])),
+        }
+        sample_weights = {
+            'l1': torch.tensor(np.asarray([1., 3.])),
+            'l2': torch.tensor(np.asarray([0.25, 0.5])),
+        }
+        loss_weights = {'l1': 2., 'l2': 5.}
+
+        loss = calc_loss(loss_functions,
+                         y_pred=y_pred,
+                         y_true=y_true,
+                         sample_weights=sample_weights,
+                         loss_weights=loss_weights)
+
+        l1_loss_mean = (4. + 3. + 0. + 3.) / 4
+        l2_loss_mean = (4. + 4. + 0. + 18.) / 4
+        assert loss.item() == pytest.approx(
+            (l1_loss_mean * 2. + l2_loss_mean * 5.) / (2. + 5.))

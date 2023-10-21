@@ -269,6 +269,104 @@ def transfer_data(data: TInputs, device: str | torch.device) -> TInputs:
     return data
 
 
+# Loss stuffs.
+def _calc_single_loss(
+    loss_fn: TLossFn,
+    *,
+    input: torch.Tensor,
+    target: torch.Tensor,
+    weight: torch.Tensor | None,
+) -> torch.Tensor:
+    """
+    Apply a loss function to the respective inputs and targets,
+    taking into account the sample weights given to each sample.
+
+    Parameters:
+        loss_fn: A single loss function that accepts an input tensor
+        and an output tensor. The function should return a tensor of
+        a scalar, or a tensor of shape (batch_size, ) or same shape
+        as the input.
+        input: Input tensor.
+        target: Target tensor.
+        weight (optional): Sample weight given to each sample in the batch,
+        can be a tensor of shape (batch_size, ) or having (or can be broadcasted to)
+        the same shape as the input. If it is a scalar tensor, then the loss
+        will simply be scaled by the given value.
+
+    Returns: A scalar tensor.
+    """
+    assert isinstance(input, torch.Tensor) and isinstance(
+        target, torch.Tensor) and (weight is None
+                                   or isinstance(weight, torch.Tensor))
+
+    # Loss functions in torch expect input first, and then target.
+    loss = loss_fn(input, target)
+
+    # `loss` can be a scalar tensor, a tensor of shape (batch_size, ) or
+    # a tensor having the same shape as the inputs.
+    # `weight` can be a tensor of shape (batch_size, ) or
+    # a tensor having the same shape as the inputs.
+
+    if weight is None:
+        return torch.mean(loss)
+    else:
+        # The case of a scalar loss, or the dimensions of
+        # both loss and weight matched.
+        if loss.ndim == 0 or loss.ndim == weight.ndim:
+            return torch.mean(loss * weight)
+
+        # Otherwise, loss's shape is (batch_size, d0, ..., dN)
+        # while weight's shape is (batch_size, )
+        elif weight.ndim == 1 and weight.shape[0] == loss.shape[0]:
+            # Append new dimensions to the *right* of weight to match
+            # that of loss.
+            weight = weight.view((-1, ) + (1, ) * (loss.ndim - 1))
+
+            return torch.mean(loss * weight)
+
+        raise ValueError(
+            'Incomptible loss and sample weight shape. '
+            f'Loss\' shape={loss.shape} while weight\'s shape={weight.shape}')
+
+
+def _loss_weighted_average(
+    losses: Sequence[float] | dict[str, float],
+    weights: Sequence[float] | dict[str, float | Sequence[float]] | None,
+):
+    if isinstance(losses, Sequence):
+        if weights is None:
+            return sum(losses) / float(len(losses))
+        elif isinstance(weights, Sequence):
+            total_loss = 0.
+            total_weight = 0.
+
+            assert len(losses) == len(
+                weights), 'Some loss functions\' weight(s) were not provided!'
+
+            for loss, weight in zip(losses, weights):
+                total_loss += loss * weight
+                total_weight += weight
+
+            return total_loss / total_weight
+    else:
+        if weights is None:
+            return sum(losses.values()) / float(len(losses))
+        elif isinstance(weights, dict):
+            total_loss = 0.
+            total_weight = 0.
+
+            for key in losses.keys():
+                w = weights[key]
+                w = w if isinstance(w, float) else sum(w)
+                total_loss += losses[key] * w
+                total_weight += w
+
+            return total_loss / total_weight
+
+    raise ValueError('Incomptible type between losses and loss weights.\n'
+                     f'Loss = {losses}\nLoss weights = {weights}.')
+
+
 def calc_loss(
     loss_fns: TLoss,
     *,
@@ -306,107 +404,66 @@ def calc_loss(
             rules above.
     """
 
-    def calc_a_single_loss(loss_fn, *, input, target, weight):
-        assert isinstance(input, torch.Tensor) and isinstance(
-            target, torch.Tensor) and (weight is None
-                                       or isinstance(weight, torch.Tensor))
-
-        # Loss functions in Torch expect input first, and then target.
-        loss = loss_fn(input, target)
-
-        if weight is None:
-            return torch.mean(loss)
-        else:
-            return torch.sum(loss * weight) / torch.sum(weight)
-
-    def weighted_average(
-        losses: Sequence[float] | dict[str, float],
-        weights: Sequence[float] | dict[str, float | Sequence[float]] | None,
-    ):
-        if isinstance(losses, Sequence):
-            if weights is None:
-                return sum(losses) / float(len(losses))
-            elif isinstance(weights, Sequence):
-                total_loss = 0.
-                total_weight = 0.
-
-                for loss, weight in zip(losses, weights, strict=True):
-                    total_loss += loss * weight
-                    total_weight += weight
-
-                return total_loss / total_weight
-        else:
-            if weights is None:
-                return sum(losses.values()) / float(len(losses))
-            elif isinstance(weights, dict):
-                total_loss = 0.
-                total_weight = 0.
-
-                for key in losses.keys():
-                    w = weights[key]
-                    w = w if isinstance(w, float) else sum(w)
-                    total_loss += losses[key] * w
-                    total_weight += w
-
-                return total_loss / total_weight
-
-        raise ValueError('Incomptible type between losses and loss weights.\n'
-                         f'Loss = {losses}\nLoss weights = {weights}.')
-
     if isinstance(loss_fns, dict):
+        assert isinstance(y_pred, dict) and isinstance(y_true, dict)
+        assert (loss_weights is None) or isinstance(loss_weights, dict)
+        assert (sample_weights is None) or isinstance(sample_weights, dict)
+
         losses = {
             key:
             calc_loss(
                 loss_fns[key],
-                loss_weights[key] if loss_weights is not None else None,
                 y_pred=y_pred[key],
                 y_true=y_true[key],
-                sample_weights=None
-                if sample_weights is None else sample_weights[key],
+                sample_weights=sample_weights[key]
+                if sample_weights is not None else None,
+                loss_weights=loss_weights[key]
+                if loss_weights is not None else None,
             )
             for key in loss_fns.keys()
         }
-        return weighted_average(losses, loss_weights)
+        return _loss_weighted_average(losses, loss_weights)
 
     elif isinstance(loss_fns, Sequence):
         if isinstance(y_pred, Sequence):
+            assert len(loss_fns) == len(y_pred) == len(
+                y_true
+            ), 'The number of loss functions should match the number of outputs.'
+
             if sample_weights is None:
                 sample_weights = (None, ) * len(loss_fns)
 
             losses = []
-            for loss_fn, input, target, sample_weight in zip(loss_fns,
-                                                             y_pred,
-                                                             y_true,
-                                                             sample_weights,
-                                                             strict=True):
+            for loss_fn, input, target, sample_weight in zip(
+                    loss_fns, y_pred, y_true, sample_weights):
                 losses.append(
-                    calc_a_single_loss(loss_fn,
-                                       input=input,
-                                       target=target,
-                                       weight=sample_weight))
+                    _calc_single_loss(loss_fn,
+                                      input=input,
+                                      target=target,
+                                      weight=sample_weight))
 
         elif isinstance(y_pred, torch.Tensor):
-            # TODO: in this case, can the sample weights be a sequence?
+            # WONDERING: in this case, can the sample weights be a sequence?
             # If it is, then we can have different sample weights for each loss function.
             # Should we allow it?
             losses = [
-                calc_a_single_loss(loss_fn,
-                                   input=y_pred,
-                                   target=y_true,
-                                   weight=sample_weights)
+                _calc_single_loss(loss_fn,
+                                  input=y_pred,
+                                  target=y_true,
+                                  weight=sample_weights)
                 for loss_fn in loss_fns
             ]
         else:
             raise ValueError(
                 f'Unsupported output type for loss calculation: {y_pred}')
 
-        return weighted_average(losses, loss_weights)
+        return _loss_weighted_average(losses, loss_weights)
 
     else:
-        return calc_a_single_loss(loss_fns,
-                                  input=y_pred,
-                                  target=y_true,
-                                  weight=sample_weights)
+        return _calc_single_loss(loss_fns,
+                                 input=y_pred,
+                                 target=y_true,
+                                 weight=sample_weights)
 
 
 # Metrics-Related Functions.
