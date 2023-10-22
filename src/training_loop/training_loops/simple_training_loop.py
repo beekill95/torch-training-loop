@@ -96,9 +96,8 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
 
             metrics: Metrics to monitor training/validation progress.
 
-                Similar to the loss functions, these metrics must follow these
-                constraints:
-                    TODO
+                Similar to the loss functions, these metrics must follow the
+                constraints (see `update_metrics()`).
 
             device: The specified device to train the model on, default to 'cpu'.
         """
@@ -196,9 +195,9 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
 
         # Calculate the loss and update metrics.
         loss = calc_loss(self._loss_fn,
-                         self._loss_weights,
                          y_pred=y_pred,
                          y_true=y,
+                         loss_weights=self._loss_weights,
                          sample_weights=sample_weights)
 
         return loss, y_pred, y
