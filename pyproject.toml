@@ -30,6 +30,7 @@ tensorboard = "*"
 pytest = "^7.4.2"
 pytest-mock = "^3.11.1"
 pre-commit = "^3.4.0"
+torchvision = "^0.16.0"
 
 [[tool.poetry.source]]
 name = "torch-cpu"
