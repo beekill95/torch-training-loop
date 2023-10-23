@@ -6,6 +6,14 @@ authors = ["beekill <nguyenmbquan95@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 packages = [{include = "training_loop", from = "src" }]
+homepage = "https://github.com/beekill95/torch-training-loop"
+repository = "https://github.com/beekill95/torch-training-loop"
+classifiers = [
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development",
+    "Topic :: Software Development :: Python Modules",
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"
@@ -31,7 +39,7 @@ priority = "explicit"
 [tool.poetry-dynamic-versioning]
 enable = true
 vcs = "git"
-style = "semver"
+style = "pep440"
 
 [tool.poetry-dynamic-versioning.substitution]
 folders = [{ path = "src" }]
