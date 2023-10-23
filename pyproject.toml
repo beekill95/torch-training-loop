@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "training-loop"
+name = "torch-training-loop"
 version = "0.0.0"
 description = "Simple Keras-like Training Loop for Pytorch."
 authors = ["beekill <nguyenmbquan95@gmail.com>"]
