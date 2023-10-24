@@ -2,10 +2,12 @@
 # %cd ..
 
 import glob
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import os
 import torch
 import torch.nn as nn
-from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
+from torch.nn.utils.rnn import pad_sequence
 from torch.optim import Adam
 from torch.utils.data import Dataset, DataLoader
 from torcheval.metrics import MulticlassAccuracy
@@ -221,7 +223,7 @@ rnn = RNN(n_letters, n_hidden, n_categories)
 
 loop = SimpleTrainingLoop(
     rnn,
-    optimizer_fn=lambda params: Adam(params, lr=0.001),
+    optimizer_fn=lambda params: Adam(params, lr=0.002),
     loss=nn.NLLLoss(),
     metrics=('accuracy', MulticlassAccuracy(num_classes=n_categories)),
 )
@@ -229,3 +231,32 @@ train_history, val_history = loop.fit(train_dl, val_dl, epochs=1)
 
 # %%
 train_history.query('batch > -1').plot(x='batch', y='loss')
+
+# %% [markdown]
+# Evaluating the Results.
+
+# %%
+confusion_matrix = torch.zeros(n_categories, n_categories)
+
+for sample, label in val_dl:
+    pred = torch.argmax(rnn(sample)[0])
+
+    confusion_matrix[pred][label] += 1
+
+# Normalize by dividing every row by its sum
+for i in range(n_categories):
+    confusion_matrix[i] = confusion_matrix[i] / confusion_matrix[i].sum()
+
+# Set up plot
+fig = plt.figure()
+ax = fig.add_subplot(111)
+cax = ax.matshow(confusion_matrix.numpy())
+fig.colorbar(cax)
+
+# Set up axes
+ax.set_xticklabels([''] + all_categories, rotation=90)
+ax.set_yticklabels([''] + all_categories)
+
+# Force label at every tick
+ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
+ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
