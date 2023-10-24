@@ -1,0 +1,28 @@
+name: Build & Publish Python Package to PyPI
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.x'
+    - name: Install Poetry Action
+      uses: snok/install-poetry@v1.3.4
+      with:
+        version: 1.5.1
+    - name: Build and Publish to PyPI
+      run: |
+        poetry build
+        poetry config pypi-token.pypi ${{ secrets.PYPI_TOKEN }}
+        poetry publish
