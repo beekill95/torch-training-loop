@@ -226,6 +226,7 @@ loop = SimpleTrainingLoop(
     optimizer_fn=lambda params: Adam(params, lr=0.002),
     loss=nn.NLLLoss(),
     metrics=('accuracy', MulticlassAccuracy(num_classes=n_categories)),
+    device='cuda' if torch.cuda.is_available() else 'cpu',
 )
 train_history, val_history = loop.fit(train_dl, val_dl, epochs=1)
 

@@ -90,6 +90,7 @@ loop = SimpleTrainingLoop(
     optimizer_fn=lambda params: SGD(params, lr=0.001, momentum=0.9),
     loss=torch.nn.CrossEntropyLoss(),
     metrics=('accuracy', MulticlassAccuracy(num_classes=len(classes))),
+    device='cuda' if torch.cuda.is_available() else 'cpu',
 )
 loop.fit(
     training_loader,
