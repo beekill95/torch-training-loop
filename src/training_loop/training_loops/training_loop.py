@@ -92,7 +92,7 @@ class TrainingLoop(Generic[TModel, TData], abc.ABC):
         total_batches = len(train_dataloader) + len(val_dataloader) + 1
 
         for epoch in range(1, epochs + 1):
-            # Start an epoch.
+            ## Epoch Start.
             self._handle(callbacks, 'epoch_begin', epoch=epoch)
             self.reset_train_metrics()
             self.reset_val_metrics()
@@ -109,6 +109,8 @@ class TrainingLoop(Generic[TModel, TData], abc.ABC):
 
             is_training = True
             for batch, data in progress_bar:
+                ## Batch Start.
+
                 # Transition to validation.
                 if data is _TRAIN_DATALOADER_SEPARATOR:
                     is_training = False
@@ -150,7 +152,9 @@ class TrainingLoop(Generic[TModel, TData], abc.ABC):
                         'val_epoch': epoch,
                     })
 
-            # End epoch.
+                ## Batch End.
+
+            # Gather training and validation logs when an epoch ends.
             logs = {
                 **self.compute_train_metrics(),
                 **_prefix_val_metrics_keys(self.compute_val_metrics()),
@@ -162,6 +166,10 @@ class TrainingLoop(Generic[TModel, TData], abc.ABC):
                 epoch=epoch,
                 logs=logs,
             )
+
+            # Update progress bar.
+            progress_bar.set_description(f'Epoch {epoch}/{epochs} - Finished')
+            progress_bar.set_postfix(logs)
 
             # Record history.
             train_history.append({
@@ -187,6 +195,8 @@ class TrainingLoop(Generic[TModel, TData], abc.ABC):
                     f'Stop training at epoch {epoch} due `StopTraining` raised.'
                 )
                 break
+
+            ## Epoch End.
 
         self._handle(callbacks, 'training_end')
 
