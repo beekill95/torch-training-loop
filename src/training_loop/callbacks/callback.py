@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from typing import Generic, Literal
+from typing import Generic, Literal, TYPE_CHECKING
 
 from ..exceptions import StopTraining
 from ..types import TModel
+
+if TYPE_CHECKING:
+    from ..training_loops.training_loop import TrainingLoop
 
 
 class Callback(Generic[TModel]):
@@ -11,12 +14,16 @@ class Callback(Generic[TModel]):
     def __init__(self):
         self._model = None
 
-    def set_model(self, model: TModel):
-        self._model = model
+    def set_training_loop(self, loop: TrainingLoop):
+        self._loop = loop
+
+    @property
+    def training_loop(self):
+        return self._loop
 
     @property
     def model(self):
-        return self._model
+        return self._loop.model
 
     def on(self, event: Literal[
         'training_begin',
