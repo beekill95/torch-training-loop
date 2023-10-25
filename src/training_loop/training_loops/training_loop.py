@@ -283,7 +283,7 @@ class TrainingLoop(Generic[TModel, TData], abc.ABC):
 
     def _init_callbacks(self, callbacks: list[Callback[TModel]]):
         for callback in callbacks:
-            callback.set_model(self.model)
+            callback.set_training_loop(self)
 
     def _handle(
         self,
