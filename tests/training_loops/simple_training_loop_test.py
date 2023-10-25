@@ -692,6 +692,8 @@ class TestTraining:
 
         compute_metrics.return_value = {'f1': 0.2}
 
+        transfer_data.side_effect = lambda x, _: x
+
         # Call train step.
         loop = instances.create_loop()
         logs = loop.train_step(self.train_data)
@@ -768,6 +770,8 @@ class TestValidation:
         compute_metrics.return_value = {'f1': 0.2}
 
         clone_metrics.return_value = (instances.metrics[0], self.val_metrics)
+
+        transfer_data.side_effect = lambda x, _: x
 
         # Call train step.
         loop = instances.create_loop()
