@@ -229,12 +229,13 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
         }
 
     def _transfer_to_device(self, data: TSimpleData) -> TSimpleData:
-        transfer_data(data[0], self.device)
-        transfer_data(data[1], self.device)
+        X = transfer_data(data[0], self.device)
+        y = transfer_data(data[1], self.device)
         if len(data) == 3:
-            transfer_data(data[2], self.device)
+            sample_weights = transfer_data(data[2], self.device)
+            return X, y, sample_weights
 
-        return data
+        return X, y
 
     @torch.no_grad()
     def _update_train_metrics(self, *, train_loss: torch.Tensor,
@@ -255,17 +256,13 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
 
 def transfer_data(data: TInputs, device: str | torch.device) -> TInputs:
     if isinstance(data, torch.Tensor):
-        data.to(device)
+        return data.to(device)
     elif isinstance(data, Sequence):
-        for d in data:
-            d.to(device)
+        return [d.to(device) for d in data]
     elif isinstance(data, dict):
-        for d in data.values():
-            d.to(device)
+        return {k: v.to(device) for k, v in data.items()}
     else:
         raise ValueError(f'Unknown data structure: {data}.')
-
-    return data
 
 
 # Loss stuffs.
