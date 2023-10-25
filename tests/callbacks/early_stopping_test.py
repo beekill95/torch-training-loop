@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from torch import nn
+from training_loop import TrainingLoop
 from training_loop.callbacks import EarlyStopping
 from training_loop.exceptions import StopTraining
 from unittest.mock import Mock
@@ -43,12 +44,15 @@ def test_raise_StopTraining_when_monitored_value_not_increasing():
 
 def test_restore_best_weights():
     fake_model = Mock(nn.Module)
+    fake_loop = Mock(TrainingLoop)
+    fake_loop.model = fake_model
+
     state_dict = {'best_weights': (1, 2, 3)}
     fake_model.state_dict.return_value = state_dict
 
     # Init callback.
     callback = EarlyStopping('f1', 'max', 5, True)
-    callback.set_model(fake_model)
+    callback.set_training_loop(fake_loop)
     callback.on('training_begin')
 
     # Let the callback store the model's state dict.

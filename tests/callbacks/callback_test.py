@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from torch import nn
+from training_loop import TrainingLoop
 from training_loop.callbacks import Callback
 from unittest.mock import MagicMock
 
@@ -13,10 +14,17 @@ def callback():
     return Callback()
 
 
-def test_set_model(callback: Callback):
+def test_set_training_loop(callback: Callback):
+    assert callback.training_loop is None
     assert callback.model is None
+
     model = nn.Sequential(nn.Linear(1, 1))
-    callback.set_model(model)
+    loop = MagicMock(TrainingLoop)
+    loop.model = model
+
+    callback.set_training_loop(loop)
+
+    assert callback.training_loop is loop
     assert callback.model is model
 
 

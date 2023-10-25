@@ -52,7 +52,7 @@ class FakeCallback(Callback):
     def __init__(self):
         super().__init__()
 
-        self.set_model = MagicMock()
+        self.set_training_loop = MagicMock()
         self.on_training_begin = MagicMock()
         self.on_training_end = MagicMock()
         self.on_epoch_begin = MagicMock()
@@ -153,7 +153,6 @@ class TestTrainingLoopFit:
         train_dataloader,
         val_dataloader,
         loop,
-        fake_model,
         fake_callback,
     ):
         loop.fit(
@@ -164,7 +163,7 @@ class TestTrainingLoopFit:
         )
 
         # Callbacks init.
-        fake_callback.set_model.assert_called_once_with(fake_model)
+        fake_callback.set_training_loop.assert_called_once_with(loop)
 
         # Assert callbacks' events.
         fake_callback.on_training_begin.assert_called_once()
@@ -232,7 +231,6 @@ class TestTrainingLoopFit:
         train_dataloader,
         val_dataloader,
         loop,
-        fake_model,
         fake_callback,
     ):
 
@@ -255,7 +253,7 @@ class TestTrainingLoopFit:
         )
 
         # Callbacks init.
-        fake_callback.set_model.assert_called_once_with(fake_model)
+        fake_callback.set_training_loop.assert_called_once_with(loop)
 
         # Assert callbacks' events.
         fake_callback.on_training_begin.assert_called_once()

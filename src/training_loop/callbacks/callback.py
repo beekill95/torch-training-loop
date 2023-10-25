@@ -13,6 +13,7 @@ class Callback(Generic[TModel]):
 
     def __init__(self):
         self._model = None
+        self._loop = None
 
     def set_training_loop(self, loop: TrainingLoop):
         self._loop = loop
@@ -23,7 +24,7 @@ class Callback(Generic[TModel]):
 
     @property
     def model(self):
-        return self._loop.model
+        return self._loop.model if self._loop is not None else None
 
     def on(self, event: Literal[
         'training_begin',
