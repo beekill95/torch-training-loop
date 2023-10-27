@@ -23,7 +23,6 @@ torcheval = "*"
 pandas = "*"
 numpy = "*"
 tqdm = "*"
-tensorboard = "*"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -33,7 +32,8 @@ pre-commit = "^3.4.0"
 
 
 [tool.poetry.group.examples.dependencies]
-torchvision = "^0.16.0"
+torchvision = { version = "*", source = "torch-cpu" }
+tensorboard = "*"
 jupyterlab = "^4.0.7"
 jupytext = "^1.15.2"
 matplotlib = "^3.6.0"
