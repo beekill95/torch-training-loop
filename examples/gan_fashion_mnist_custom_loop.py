@@ -1,6 +1,18 @@
-# %%
-# %cd ..
+# ---
+# jupyter:
+#   jupytext:
+#     text_representation:
+#       extension: .py
+#       format_name: percent
+#       format_version: '1.3'
+#       jupytext_version: 1.15.2
+#   kernelspec:
+#     display_name: Python 3 (ipykernel)
+#     language: python
+#     name: python3
+# ---
 
+# %%
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
@@ -8,7 +20,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam
-from torcheval.metrics import BinaryAccuracy
+from torcheval.metrics import BinaryAccuracy, Mean
 import torchvision
 import torchvision.transforms as transforms
 from training_loop import TrainingLoop
@@ -26,13 +38,14 @@ transform = transforms.Compose([
 ])
 
 # Create datasets for training & validation, download if necessary
-training_set = torchvision.datasets.FashionMNIST(
+MNIST = torchvision.datasets.FashionMNIST
+training_set = MNIST(
     './data',
     train=True,
     transform=transform,
     download=True,
 )
-validation_set = torchvision.datasets.FashionMNIST(
+validation_set = MNIST(
     './data',
     train=False,
     transform=transform,
@@ -42,13 +55,15 @@ validation_set = torchvision.datasets.FashionMNIST(
 # Create data loaders for our datasets; shuffle for training, not for validation
 training_loader = torch.utils.data.DataLoader(
     training_set,
-    batch_size=32,
+    batch_size=128,
     shuffle=True,
+    num_workers=2,
 )
 validation_loader = torch.utils.data.DataLoader(
     validation_set,
-    batch_size=32,
+    batch_size=128,
     shuffle=False,
+    num_workers=2,
 )
 
 # Class labels
@@ -72,7 +87,6 @@ print('Validation set has {} instances'.format(len(validation_set)))
 # %% [markdown]
 # ## GAN Models: Generator and Discriminator
 #
-# Similar to [this example.](https://keras.io/examples/generative/conditional_gan/#creating-the-discriminator-and-generator)
 
 # %%
 GeneratorInput = TypedDict('GeneratorInput', {
@@ -87,35 +101,27 @@ DiscriminatorInput = TypedDict('DiscriminatorInput', {
 
 class GarmentGenerator(nn.Module):
 
-    def __init__(self, input_size: int, n_classes: int) -> None:
+    def __init__(self, input_size, n_classes) -> None:
         super().__init__()
 
-        n_channels = 7
-        self.linear = nn.Sequential(
-            nn.Linear(input_size + n_classes, 7 * 7 * n_channels),
+        self.hidden = nn.Sequential(
+            nn.Linear(input_size + n_classes, 200),
+            nn.ReLU(),
+            nn.Linear(200, 400),
             nn.ReLU(),
         )
-
-        self.conv = nn.Sequential(
-            nn.ConvTranspose2d(n_channels,
-                               128,
-                               kernel_size=(4, 4),
-                               stride=(2, 2)),
-            nn.ReLU(),
-            nn.ConvTranspose2d(128, 128, kernel_size=(4, 4), stride=(2, 2)),
-            nn.ReLU(),
-            nn.Conv2d(128, 1, kernel_size=(7, 7)),
+        self.output = nn.Sequential(
+            nn.Linear(400, 784),
             nn.Tanh(),
         )
+        self.unflatten = nn.Unflatten(dim=1, unflattened_size=(1, 28, 28))
 
     def forward(self, input: GeneratorInput):
         signal, clazz = input['signal'], input['class']
         x = torch.cat([signal, clazz], dim=-1)
-        batch_size = x.shape[0]
-
-        x = self.linear(x)
-        x = x.view((batch_size, -1, 7, 7))
-        x = self.conv(x)
+        x = self.hidden(x)
+        x = self.output(x)
+        x = self.unflatten(x)
         return x
 
 
@@ -124,26 +130,22 @@ class GarmentDiscriminator(nn.Module):
     def __init__(self, n_classes: int) -> None:
         super().__init__()
 
-        self.conv = nn.Sequential(
-            nn.Conv2d(1, 64, kernel_size=(3, 3), stride=(2, 2)),
+        self.flatten = nn.Flatten()
+        self.hidden = nn.Sequential(
+            nn.Linear(28 * 28 + n_classes, 400),
             nn.ReLU(),
-            nn.Conv2d(64, 128, kernel_size=(3, 3), stride=(2, 2)),
+            nn.Linear(400, 200),
             nn.ReLU(),
-            nn.AdaptiveAvgPool2d((1, 1)),
+            nn.Linear(200, 100),
+            nn.ReLU(),
         )
-
-        self.output = nn.Linear(128 + n_classes, 1)
+        self.output = nn.Sequential(nn.Linear(100, 1), )
 
     def forward(self, input: DiscriminatorInput):
-        image, clazz = input['image'], input['class']
-        batch_size = image.shape[0]
-
-        x = self.conv(image)
-        x = x.view((batch_size, -1))
-
-        x = torch.cat([x, clazz], dim=-1)
+        image, clazz = self.flatten(input['image']), input['class']
+        x = torch.concat((image, clazz), dim=-1)
+        x = self.hidden(x)
         x = self.output(x)
-
         return x
 
 
@@ -186,30 +188,25 @@ class GarmentConditionalGANTrainingLoop(TrainingLoop[GarmentConditionalGAN,
                  device: str | torch.device = 'cpu') -> None:
         super().__init__(model, device=device)
 
-        self.generator_optim = Adam(model.generator.parameters(), lr=0.0001)
+        self.generator_optim = Adam(model.generator.parameters(), lr=1e-4)
         self.discriminator_optim = Adam(model.discriminator.parameters(),
-                                        lr=0.0001)
+                                        lr=1e-4)
 
         self.signal_length = signal_length
         self.n_classes = n_classes
 
         # Train metrics and losses.
-        self.generator_total_train_loss = 0.
-        self.generator_nb_train_batches = 0
-        self.discriminator_total_train_loss = 0.
-        self.discriminator_nb_train_batches = 0
-        self.generator_train_accuracy = BinaryAccuracy(threshold=0.,
-                                                       device=device)
+        self.generator_train_loss = Mean(device=device)
+        self.discriminator_train_loss = Mean(device=device)
+        self.generator_train_skill = BinaryAccuracy(threshold=0.,
+                                                    device=device)
         self.discriminator_train_accuracy = BinaryAccuracy(threshold=0.,
                                                            device=device)
 
         # Validation metrics and losses.
-        self.generator_total_val_loss = 0.
-        self.generator_nb_val_batches = 0
-        self.discriminator_total_val_loss = 0.
-        self.discriminator_nb_val_batches = 0
-        self.generator_val_accuracy = BinaryAccuracy(threshold=0.,
-                                                     device=device)
+        self.generator_val_loss = Mean(device=device)
+        self.discriminator_val_loss = Mean(device=device)
+        self.generator_val_skill = BinaryAccuracy(threshold=0., device=device)
         self.discriminator_val_accuracy = BinaryAccuracy(threshold=0.,
                                                          device=device)
 
@@ -235,10 +232,9 @@ class GarmentConditionalGANTrainingLoop(TrainingLoop[GarmentConditionalGAN,
 
         # Update the generator accuracy.
         with torch.no_grad():
-            self.generator_train_accuracy.update(
-                discriminator_output.squeeze(),
-                torch.tensor([0.] * discriminator_output.shape[0],
-                             device=self.device))
+            discriminator_output = discriminator_output.squeeze()
+            self.generator_train_skill.update(
+                discriminator_output, torch.ones_like(discriminator_output))
 
         # Next, perform the forward pass on the discriminator to
         # the discriminator's loss.
@@ -257,19 +253,15 @@ class GarmentConditionalGANTrainingLoop(TrainingLoop[GarmentConditionalGAN,
         self.discriminator_optim.step()
 
         # Update the losses.
-        self.generator_total_train_loss += generator_loss.detach().cpu().item()
-        self.generator_nb_train_batches += 1
-        self.discriminator_total_train_loss += discriminator_loss.detach().cpu(
-        ).item()
-        self.discriminator_nb_train_batches += 1
-
         with torch.no_grad():
-            self.discriminator_train_accuracy.update(discriminator_output.squeeze(),
-                                                     discriminator_target.squeeze())
+            self.generator_train_loss.update(generator_loss)
+            self.discriminator_train_loss.update(discriminator_loss)
+            self.discriminator_train_accuracy.update(
+                discriminator_output.squeeze(), discriminator_target.squeeze())
 
         return self.compute_train_metrics()
 
-    @torch.no_grad
+    @torch.no_grad()
     def val_step(self, data: Tuple[torch.Tensor,
                                    torch.Tensor]) -> dict[str, float]:
         self.model.eval()
@@ -286,10 +278,9 @@ class GarmentConditionalGANTrainingLoop(TrainingLoop[GarmentConditionalGAN,
         ) = self._generator_forward(images, labels)
 
         # Update the generator accuracy.
-        self.generator_train_accuracy.update(
-            discriminator_output.squeeze(),
-            torch.tensor([0.] * discriminator_output.shape[0],
-                         device=self.device))
+        discriminator_output = discriminator_output.squeeze()
+        self.generator_val_skill.update(discriminator_output,
+                                        torch.ones_like(discriminator_output))
 
         # Next, perform the forward pass on the discriminator to
         # the discriminator's loss.
@@ -303,55 +294,49 @@ class GarmentConditionalGANTrainingLoop(TrainingLoop[GarmentConditionalGAN,
                                         fake_labels=labels)
 
         # Update the losses.
-        self.generator_total_val_loss += generator_loss.detach().cpu().item()
-        self.generator_nb_val_batches += 1
-        self.discriminator_total_val_loss += discriminator_loss.detach().cpu(
-        ).item()
-        self.discriminator_nb_val_batches += 1
-
+        self.generator_val_loss.update(generator_loss)
+        self.discriminator_val_loss.update(discriminator_loss)
         self.discriminator_val_accuracy.update(discriminator_output.squeeze(),
-                                                discriminator_target.squeeze())
+                                               discriminator_target.squeeze())
 
         return self.compute_val_metrics()
 
     def reset_train_metrics(self):
-        self.generator_total_train_loss = 0.
-        self.generator_nb_train_batches = 0
-        self.discriminator_total_train_loss = 0.
-        self.discriminator_nb_train_batches = 0
-
-        self.generator_train_accuracy.reset()
+        self.generator_train_loss.reset()
+        self.discriminator_train_loss.reset()
+        self.generator_train_skill.reset()
         self.discriminator_train_accuracy.reset()
 
     def reset_val_metrics(self):
-        self.generator_total_val_loss = 0.
-        self.generator_nb_val_batches = 0
-        self.discriminator_total_val_loss = 0.
-        self.discriminator_nb_val_batches = 0
-
-        self.generator_val_accuracy.reset()
+        self.generator_val_loss.reset()
+        self.discriminator_val_loss.reset()
+        self.generator_val_skill.reset()
         self.discriminator_val_accuracy.reset()
 
     @torch.no_grad()
     def compute_train_metrics(self) -> dict[str, float]:
         return {
             'generator_loss':
-            self.generator_total_train_loss / self.generator_nb_train_batches,
-            'discriminator_loss': self.discriminator_total_train_loss /
-            self.discriminator_nb_train_batches,
-            'generator_acc': self.generator_train_accuracy.compute().cpu().item(),
-            'discriminator_acc': self.discriminator_train_accuracy.compute().cpu().item(),
+            self.generator_train_loss.compute().cpu().item(),
+            'discriminator_loss':
+            self.discriminator_train_loss.compute().cpu().item(),
+            'generator_skill':
+            self.generator_train_skill.compute().cpu().item(),
+            'discriminator_acc':
+            self.discriminator_train_accuracy.compute().cpu().item(),
         }
 
     @torch.no_grad()
     def compute_val_metrics(self) -> dict[str, float]:
         return {
             'generator_loss':
-            self.generator_total_val_loss / self.generator_nb_val_batches,
-            'discriminator_loss': self.discriminator_total_val_loss /
-            self.discriminator_nb_val_batches,
-            'generator_acc': self.generator_val_accuracy.compute().cpu().item(),
-            'discriminator_acc': self.discriminator_val_accuracy.compute().cpu().item(),
+            self.generator_val_loss.compute().cpu().item(),
+            'discriminator_loss':
+            self.discriminator_val_loss.compute().cpu().item(),
+            'generator_skill':
+            self.generator_val_skill.compute().cpu().item(),
+            'discriminator_acc':
+            self.discriminator_val_accuracy.compute().cpu().item(),
         }
 
     def _generator_forward(self, images: torch.Tensor, labels: torch.Tensor):
@@ -375,7 +360,9 @@ class GarmentConditionalGANTrainingLoop(TrainingLoop[GarmentConditionalGAN,
                                           network='discriminator')
 
         # Calculate the generator loss.
-        generator_loss = -discriminator_output.mean()
+        misleading_target = torch.ones_like(discriminator_output)
+        generator_loss = F.binary_cross_entropy_with_logits(
+            discriminator_output, misleading_target)
 
         return generator_loss, fake_images, discriminator_output
 
@@ -408,18 +395,19 @@ class GarmentConditionalGANTrainingLoop(TrainingLoop[GarmentConditionalGAN,
         return loss, discriminator_output, discriminator_target
 
 
-model = GarmentConditionalGAN(128, len(classes))
+signal_length = 128
+model = GarmentConditionalGAN(signal_length, len(classes))
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 loop = GarmentConditionalGANTrainingLoop(
     model,
-    signal_length=128,
+    signal_length=signal_length,
     n_classes=len(classes),
     device=device,
 )
-loop.fit(
+_ = loop.fit(
     training_loader,
     validation_loader,
-    epochs=1,
+    epochs=1 if device == 'cpu' else 100,
 )
 
 # %% [markdown]
@@ -438,7 +426,8 @@ for i in range(len(classes)):
     with torch.no_grad():
         clazz = F.one_hot(torch.tensor([i] * n_images_per_class),
                           num_classes=len(classes)).to(device)
-        signal = torch.randn((n_images_per_class, 128), device=device)
+        signal = torch.randn((n_images_per_class, signal_length),
+                             device=device)
 
         # Feed into the generator.
         input: GeneratorInput = {'class': clazz, 'signal': signal}
