@@ -6,21 +6,18 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from training_loop.callbacks import Callback
-from training_loop import TrainingLoop
+from training_loop import TrainingLoop, TrainingStep
+from training_loop.training_loops.training_step import TDevice
 from typing import Any
 from unittest.mock import DEFAULT, MagicMock, call
 
 from training_loop.exceptions import StopTraining
 
 
-class EmptyTrainingLoop(TrainingLoop[nn.Module, Any]):
+class EmptyTrainingStep(TrainingStep[nn.Module, Any]):
 
-    def __init__(self,
-                 model: Any,
-                 *,
-                 device: str | torch.device = 'cpu') -> None:
-        super().__init__(model, device=device)
-
+    def __init__(self) -> None:
+        self.init = MagicMock()
         self.train_step = MagicMock()
         self.val_step = MagicMock()
         self.reset_train_metrics = MagicMock()
@@ -28,10 +25,15 @@ class EmptyTrainingLoop(TrainingLoop[nn.Module, Any]):
         self.compute_train_metrics = MagicMock()
         self.compute_val_metrics = MagicMock()
 
-    def train_step(self, data: Any) -> dict[str, float]:
+    def init(self, model: nn.Module, device: TDevice) -> None:
         pass
 
-    def val_step(self, data: Any) -> dict[str, float]:
+    def train_step(self, model: nn.Module, data: Any,
+                   device: TDevice) -> dict[str, float]:
+        pass
+
+    def val_step(self, model: nn.Module, data: Any,
+                 device: TDevice) -> dict[str, float]:
         pass
 
     def reset_train_metrics(self):
@@ -77,14 +79,14 @@ def fake_callback():
 
 
 def test_init_loop_with_cpu_device(fake_model):
-    loop = EmptyTrainingLoop(fake_model, device='cpu')
+    loop = TrainingLoop(fake_model, step=EmptyTrainingStep(), device='cpu')
     fake_model.to.assert_called_once_with('cpu')
     assert loop.device == 'cpu'
     assert loop.model is fake_model
 
 
 def test_init_loop_with_cuda_device(fake_model):
-    loop = EmptyTrainingLoop(fake_model, device='cuda')
+    loop = TrainingLoop(fake_model, step=EmptyTrainingStep(), device='cuda')
     fake_model.to.assert_called_once_with('cuda')
     assert loop.device == 'cuda'
     assert loop.model is fake_model
@@ -138,13 +140,17 @@ class TestTrainingLoopFit:
         return dataloader
 
     @pytest.fixture
-    def loop(self, fake_model):
-        empty_loop = EmptyTrainingLoop(fake_model)
-        empty_loop.train_step.side_effect = self.train_step_return_values
-        empty_loop.val_step.side_effect = self.val_step_return_values
+    def step(self):
+        return EmptyTrainingStep()
 
-        empty_loop.compute_train_metrics.return_value = {'f1': 0.8, 'epoch': 1}
-        empty_loop.compute_val_metrics.return_value = {'f1': 0.6, 'epoch': 1}
+    @pytest.fixture
+    def loop(self, fake_model, step):
+        empty_loop = TrainingLoop(fake_model, step=step)
+        step.train_step.side_effect = self.train_step_return_values
+        step.val_step.side_effect = self.val_step_return_values
+
+        step.compute_train_metrics.return_value = {'f1': 0.8, 'epoch': 1}
+        step.compute_val_metrics.return_value = {'f1': 0.6, 'epoch': 1}
 
         return empty_loop
 
@@ -154,6 +160,8 @@ class TestTrainingLoopFit:
         val_dataloader,
         loop,
         fake_callback,
+        fake_model,
+        step,
     ):
         loop.fit(
             train_dataloader,
@@ -161,6 +169,9 @@ class TestTrainingLoopFit:
             epochs=1,
             callbacks=[fake_callback],
         )
+
+        # Step init.
+        step.init.assert_called_once_with(fake_model, 'cpu')
 
         # Callbacks init.
         fake_callback.set_training_loop.assert_called_once_with(loop)
@@ -221,10 +232,10 @@ class TestTrainingLoopFit:
         fake_callback.on_training_end.assert_called_once()
 
         # Metrics stuffs.
-        loop.reset_train_metrics.assert_called_once()
-        loop.reset_val_metrics.assert_called_once()
-        loop.compute_train_metrics.assert_called_once()
-        loop.compute_val_metrics.assert_called_once()
+        step.reset_train_metrics.assert_called_once()
+        step.reset_val_metrics.assert_called_once()
+        step.compute_train_metrics.assert_called_once()
+        step.compute_val_metrics.assert_called_once()
 
     def test_fit_multiple_epochs(
         self,
@@ -232,14 +243,15 @@ class TestTrainingLoopFit:
         val_dataloader,
         loop,
         fake_callback,
+        step,
     ):
 
         def reset_mocks_return_values(*args, **kwargs):
             train_dataloader.__iter__.return_value = self.train_data
             val_dataloader.__iter__.return_value = self.val_data
 
-            loop.train_step.side_effect = self.train_step_return_values
-            loop.val_step.side_effect = self.val_step_return_values
+            step.train_step.side_effect = self.train_step_return_values
+            step.val_step.side_effect = self.val_step_return_values
 
             return DEFAULT
 
@@ -296,10 +308,10 @@ class TestTrainingLoopFit:
         fake_callback.on_training_end.assert_called_once()
 
         # Metrics stuffs.
-        assert loop.reset_train_metrics.call_count == 3
-        assert loop.reset_val_metrics.call_count == 3
-        assert loop.compute_train_metrics.call_count == 3
-        assert loop.compute_val_metrics.call_count == 3
+        assert step.reset_train_metrics.call_count == 3
+        assert step.reset_val_metrics.call_count == 3
+        assert step.compute_train_metrics.call_count == 3
+        assert step.compute_val_metrics.call_count == 3
 
     def test_returned_histories(
         self,
@@ -371,14 +383,15 @@ class TestTrainingLoopFit:
         val_dataloader,
         loop,
         fake_callback,
+        step,
     ):
 
         def reset_mocks_return_values(epoch, **kwargs):
             train_dataloader.__iter__.return_value = self.train_data
             val_dataloader.__iter__.return_value = self.val_data
 
-            loop.train_step.side_effect = self.train_step_return_values
-            loop.val_step.side_effect = self.val_step_return_values
+            step.train_step.side_effect = self.train_step_return_values
+            step.val_step.side_effect = self.val_step_return_values
 
             return DEFAULT
 
@@ -417,10 +430,10 @@ class TestTrainingLoopFit:
         fake_callback.on_training_end.assert_called_once()
 
         # Metrics stuffs.
-        assert loop.reset_train_metrics.call_count == 1
-        assert loop.reset_val_metrics.call_count == 1
-        assert loop.compute_train_metrics.call_count == 1
-        assert loop.compute_val_metrics.call_count == 1
+        assert step.reset_train_metrics.call_count == 1
+        assert step.reset_val_metrics.call_count == 1
+        assert step.compute_train_metrics.call_count == 1
+        assert step.compute_val_metrics.call_count == 1
 
 
 class TestTrainingLoopFitCallsOrder:
@@ -457,24 +470,26 @@ class TestTrainingLoopFitCallsOrder:
         return fake_callback
 
     def recorded_loop(self, fake_model, call_orders: list):
-        loop = EmptyTrainingLoop(fake_model)
+        step = EmptyTrainingStep()
+        loop = TrainingLoop(fake_model, step)
 
-        loop.train_step.side_effect = self._record_call(
+        step.init.side_effect = self._record_call('init', call_orders)
+        step.train_step.side_effect = self._record_call(
             'train_step', call_orders)
-        loop.train_step.return_value = {'f1': 0.8}
-        loop.val_step.side_effect = self._record_call('val_step', call_orders)
-        loop.val_step.return_value = {'f1': 0.7}
+        step.train_step.return_value = {'f1': 0.8}
+        step.val_step.side_effect = self._record_call('val_step', call_orders)
+        step.val_step.return_value = {'f1': 0.7}
 
-        loop.compute_train_metrics.side_effect = self._record_call(
+        step.compute_train_metrics.side_effect = self._record_call(
             'compute_train_metrics', call_orders)
-        loop.compute_train_metrics.return_value = {'f1': 0.8}
-        loop.compute_val_metrics.side_effect = self._record_call(
+        step.compute_train_metrics.return_value = {'f1': 0.8}
+        step.compute_val_metrics.side_effect = self._record_call(
             'compute_val_metrics', call_orders)
-        loop.compute_val_metrics.return_value = {'f1': 0.7}
+        step.compute_val_metrics.return_value = {'f1': 0.7}
 
-        loop.reset_train_metrics.side_effect = self._record_call(
+        step.reset_train_metrics.side_effect = self._record_call(
             'reset_train_metrics', call_orders)
-        loop.reset_val_metrics.side_effect = self._record_call(
+        step.reset_val_metrics.side_effect = self._record_call(
             'reset_val_metrics', call_orders)
 
         return loop
@@ -501,6 +516,7 @@ class TestTrainingLoopFitCallsOrder:
 
         methods = [name for name, _ in call_orders]
         assert methods == [
+            'init',
             'on_training_begin',
             # First epoch
             'on_epoch_begin',
@@ -574,6 +590,7 @@ class TestTrainingLoopFitCallsOrder:
 
         methods = [name for name, _ in call_orders]
         assert methods == [
+            'init',
             'on_training_begin',
             # First epoch
             'on_epoch_begin',

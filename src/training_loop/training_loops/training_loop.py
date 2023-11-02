@@ -132,8 +132,8 @@ class TrainingLoop(Generic[TModel, TData]):
                     logs = step.train_step(model, data, device)
                 else:
                     with torch.no_grad():
-                        logs = self.val_step(model, data, device)
-                        logs = _prefix_val_metrics_keys()
+                        logs = step.val_step(model, data, device)
+                        logs = _prefix_val_metrics_keys(logs)
 
                 self._handle(
                     callbacks,
