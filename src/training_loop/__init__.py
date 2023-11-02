@@ -1,10 +1,9 @@
 from importlib.metadata import version, PackageNotFoundError
 
 from .training_loops import (
-    SimpleTrainingLoop,
+    SimpleTrainingStep,
     TrainingLoop,
     TrainingStep,
-    SimpleTrainingStep,
 )
 
 try:
