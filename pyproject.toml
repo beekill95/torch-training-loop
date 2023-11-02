@@ -16,6 +16,9 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
+[tool.poetry.urls]
+"CHANGELOG" = "https://github.com/beekill95/torch-training-loop/blob/main/CHANGELOG.md"
+
 [tool.poetry.dependencies]
 python = "^3.8"
 torch = { version = "*", source = "torch-cpu" }
