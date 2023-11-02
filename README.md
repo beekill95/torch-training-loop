@@ -7,7 +7,7 @@
 
 # Torch Training Loop
 
-Simple Keras-like Training Loop for Pytorch.
+Simple Keras-inspired Training Loop for Pytorch.
 
 ## Installation
 
@@ -15,11 +15,55 @@ Simple Keras-like Training Loop for Pytorch.
 
 ## Features
 
-* Support Keras-like API for training Torch models;
+* Simple API for training Torch models;
+* Support training `DataParallel` models;
 * Support Keras-like callbacks for logging metrics to Tensorboard, model checkpoint,
 and early stopping;
 * Show training & validation progress via `tqdm`;
 * Display metrics during training & validation via `torcheval`.
+
+## Usage
+
+This package consists of two main classes for training Torch models:
+`TrainingLoop` and `SimpleTrainingStep`.
+In order to train a torch model, you need to initiate these two classes:
+
+```python
+import torch
+from torch.optim import Adam
+from torcheval.metrics import MulticlassAccuracy
+from training_loop import TrainingLoop, SimpleTrainingStep
+from training_loop.callbacks import EarlyStopping
+
+model = ...
+# Support training DataParallel models.
+# model = DataParallel(model)
+
+train_dataloader = ...
+val_dataloader = ...
+
+loop = TrainingLoop(
+    model,
+    step=SimpleTrainingStep(
+        optimizer_fn=lambda params: Adam(params),
+        loss=torch.nn.CrossEntropyLoss(),
+        metrics=('accuracy', MulticlassAccuracy(num_classes=10)),
+    ),
+    device='cuda',
+)
+loop.fit(
+    train_dataloader,
+    val_dataloader,
+    epochs=10,
+    callbacks=[
+        EarlyStopping(monitor='val_loss', mode='min', patience=20),
+    ],
+)
+```
+
+In the above example, initializing the `SimpleTrainingStep` class and
+calling the `fit()` method of the `TrainingLoop` class are very similar to that of Keras API.
+You can find more examples and documentation in the source code and in the `examples` folder.
 
 ## License
 

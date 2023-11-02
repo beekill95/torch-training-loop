@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "torch-training-loop"
 version = "0.0.0"
-description = "Simple Keras-like Training Loop for Pytorch."
+description = "Simple Keras-inspired Training Loop for Pytorch."
 authors = ["beekill <nguyenmbquan95@gmail.com>"]
 license = "MIT"
 readme = "README.md"
