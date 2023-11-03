@@ -9,6 +9,11 @@ from tqdm.auto import tqdm
 from typing import Generic
 
 from .training_step import TrainingStep
+from .utils import (
+    TRAIN_DATALOADER_SEPARATOR,
+    train_dataloader_separator,
+    prefix_val_metrics_keys,
+)
 from ..callbacks import Callback
 from ..exceptions import StopTraining
 from ..types import TData, TModel
@@ -104,7 +109,7 @@ class TrainingLoop(Generic[TModel, TData]):
 
             dataloader = chain(
                 enumerate(train_dataloader, start=1),
-                _train_dataloader_separator(),
+                train_dataloader_separator(),
                 enumerate(val_dataloader, start=1),
             )
 
@@ -117,7 +122,7 @@ class TrainingLoop(Generic[TModel, TData]):
                 ## Batch Start.
 
                 # Transition to validation.
-                if data is _TRAIN_DATALOADER_SEPARATOR:
+                if data is TRAIN_DATALOADER_SEPARATOR:
                     is_training = False
                     progress_bar.set_description(
                         f'Epoch {epoch}/{epochs} - Validating')
@@ -133,7 +138,8 @@ class TrainingLoop(Generic[TModel, TData]):
                 else:
                     with torch.no_grad():
                         logs = step.val_step(model, data, device)
-                        logs = _prefix_val_metrics_keys(logs)
+                        logs = prefix_val_metrics_keys(logs,
+                                                       _VAL_METRICS_PREFIX)
 
                 self._handle(
                     callbacks,
@@ -163,7 +169,7 @@ class TrainingLoop(Generic[TModel, TData]):
             # Gather training and validation logs when an epoch ends.
             logs = {
                 **step.compute_train_metrics(),
-                **_prefix_val_metrics_keys(step.compute_val_metrics()),
+                **prefix_val_metrics_keys(step.compute_val_metrics(), _VAL_METRICS_PREFIX),
             }
 
             stop_training = self._handle(
@@ -233,19 +239,3 @@ class TrainingLoop(Generic[TModel, TData]):
                 stop_training = True
 
         return stop_training
-
-
-_TRAIN_DATALOADER_SEPARATOR = ()
-
-
-def _train_dataloader_separator():
-    yield (-1, _TRAIN_DATALOADER_SEPARATOR)
-
-
-def _prefix_val_metrics_keys(metrics: dict[str, float]) -> dict[str, float]:
-
-    def prefix_key(key):
-        return (key if key.startswith(_VAL_METRICS_PREFIX) else
-                f'{_VAL_METRICS_PREFIX}{key}')
-
-    return {prefix_key(k): v for k, v in metrics.items()}
