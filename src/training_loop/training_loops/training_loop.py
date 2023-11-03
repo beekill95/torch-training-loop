@@ -1,29 +1,28 @@
 from __future__ import annotations
 
-import abc
 from itertools import chain
 import logging
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
-from typing import Generic, TypeVar
+from typing import Generic
 
+from .training_step import TrainingStep
 from ..callbacks import Callback
 from ..exceptions import StopTraining
-from ..types import TModel
+from ..types import TData, TModel
 
 _LOGGER = logging.getLogger('TrainingLoop')
 _VAL_METRICS_PREFIX = 'val_'
 
-TData = TypeVar('TData')
 
-
-class TrainingLoop(Generic[TModel, TData], abc.ABC):
+class TrainingLoop(Generic[TModel, TData]):
 
     def __init__(
         self,
         model: TModel,
+        step: TrainingStep[TModel, TData],
         *,
         device: str | torch.device = 'cpu',
     ) -> None:
@@ -34,6 +33,7 @@ class TrainingLoop(Generic[TModel, TData], abc.ABC):
 
         self._model = model.to(device)
         self._device = device
+        self._step = step
 
     @property
     def device(self):
@@ -54,13 +54,13 @@ class TrainingLoop(Generic[TModel, TData], abc.ABC):
         """
         A skeleton for training and validating a typical model on
         the corresponding train/val datasets. This function will handle
-        calling `train_step()`, `val_step()`, and calling callbacks' events.
-        Moreover, it will also handle displaying training progress using
-        `tqdm`. In order for it to display the progress, subclasses should
-        override `train_step()` and `val_step()` and return losses and metrics
-        to be displayed in the progress bar. Furthermore, subclasses should
-        override the `reset_*_metrics()` and `compute_*_metrics()` in order to
-        reset and compute metrics at the beginning and the end of each epoch.
+        calling `train_step()`, `val_step()` of the trainig step class,
+        and calling callbacks' events. Moreover, it will also handle displaying
+        training progress using `tqdm`. In order for it to display the progress,
+        training step should override `train_step()` and `val_step()` and return losses
+        and metrics to be displayed in the progress bar. Furthermore, training step
+        subclasses should override the `reset_*_metrics()` and `compute_*_metrics()` in
+        order to reset and compute metrics at the beginning and the end of each epoch.
 
         Parameters:
             train_dataloader: DataLoader
@@ -83,9 +83,14 @@ class TrainingLoop(Generic[TModel, TData], abc.ABC):
         train_history = []
         val_history = []
 
+        step = self._step
+        model = self.model
+        device = self.device
+
         if callbacks is None:
             callbacks = []
 
+        step.init(model, device)
         self._init_callbacks(callbacks)
         self._handle(callbacks, 'training_begin')
 
@@ -94,8 +99,8 @@ class TrainingLoop(Generic[TModel, TData], abc.ABC):
         for epoch in range(1, epochs + 1):
             ## Epoch Start.
             self._handle(callbacks, 'epoch_begin', epoch=epoch)
-            self.reset_train_metrics()
-            self.reset_val_metrics()
+            step.reset_train_metrics()
+            step.reset_val_metrics()
 
             dataloader = chain(
                 enumerate(train_dataloader, start=1),
@@ -124,10 +129,11 @@ class TrainingLoop(Generic[TModel, TData], abc.ABC):
                     batch=batch)
 
                 if is_training:
-                    logs = self.train_step(data)
+                    logs = step.train_step(model, data, device)
                 else:
                     with torch.no_grad():
-                        logs = _prefix_val_metrics_keys(self.val_step(data))
+                        logs = step.val_step(model, data, device)
+                        logs = _prefix_val_metrics_keys(logs)
 
                 self._handle(
                     callbacks,
@@ -156,8 +162,8 @@ class TrainingLoop(Generic[TModel, TData], abc.ABC):
 
             # Gather training and validation logs when an epoch ends.
             logs = {
-                **self.compute_train_metrics(),
-                **_prefix_val_metrics_keys(self.compute_val_metrics()),
+                **step.compute_train_metrics(),
+                **_prefix_val_metrics_keys(step.compute_val_metrics()),
             }
 
             stop_training = self._handle(
@@ -207,79 +213,6 @@ class TrainingLoop(Generic[TModel, TData], abc.ABC):
             ['val_epoch', 'val_batch'],
             drop=False,
         ))
-
-    @abc.abstractmethod
-    def train_step(self, data: TData) -> dict[str, float]:
-        """
-        Perform one train step over the given data. Subclasses
-        should implement this method to perform feed-forward
-        and back-propagation. Moreover, the function should return
-        a dictionary of metrics and their values to display the
-        training progress.
-
-        Parameters:
-            data: Any
-                A mini-batch returned by the train dataloader.
-
-        Returns: dict[str, float]
-            Train metrics to be displayed in the progress bar.
-        """
-        pass
-
-    @abc.abstractmethod
-    @torch.no_grad()
-    def val_step(self, data: TData) -> dict[str, float]:
-        """
-        Perform one validation over the given data. Subclasses
-        should implement this method to perform feed-forward
-        over the data. The function should return a dictionary
-        of metrics and their values to display the validation progress.
-        The returned dictionary's keys will be prefixed with 'val_'
-        before displaying, unless they already have that prefix.
-
-        Parameters:
-            data: Any
-                A mini-batch returned by the validation dataloader.
-
-        Returns: dict[str, float]
-            Validation metrics to be displayed in the progress bar.
-        """
-        pass
-
-    @abc.abstractmethod
-    @torch.no_grad()
-    def reset_train_metrics(self):
-        """Reset training metrics, will be used at the start of an epoch."""
-        pass
-
-    @abc.abstractmethod
-    @torch.no_grad()
-    def reset_val_metrics(self):
-        """Reset validation metrics, will be used at the start of an epoch."""
-        pass
-
-    @abc.abstractmethod
-    @torch.no_grad()
-    def compute_train_metrics(self) -> dict[str, float]:
-        """
-        Compute training metrics, will be used at the end of an epoch.
-
-        Returns: dict[str, float]
-            Training metrics to be displayed in the progress bar at the end of an epoch.
-        """
-        pass
-
-    @abc.abstractmethod
-    @torch.no_grad()
-    def compute_val_metrics(self) -> dict[str, float]:
-        """
-        Compute validation metrics, will be used at the end of an epoch.
-
-        Returns: dict[str, float]
-            Validation metrics to be displayed in the progress bar
-            at the end of an epoch.
-        """
-        pass
 
     def _init_callbacks(self, callbacks: list[Callback[TModel]]):
         for callback in callbacks:

@@ -3,12 +3,11 @@ from __future__ import annotations
 from collections import ChainMap
 import torch
 from torch import nn, optim
-from torcheval.metrics import Metric
+from torcheval.metrics import Metric, Mean
 from torcheval.metrics.toolkit import clone_metric
 from typing import Callable, Iterator, Tuple, Sequence, Union, Dict, List
 
-from .training_loop import TrainingLoop
-from ..types import TModel
+from .training_step import TrainingStep, TDevice
 
 # Loss Functions.
 TLossFn = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
@@ -32,14 +31,14 @@ TSimpleData = Union[Tuple[TInputs, TOutputs], Tuple[TInputs, TOutputs,
                                                     TSampleWeights]]
 
 
-class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
+class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData]):
     """
-    A simple training loop that implements the base TrainingLoop class.
-    This training loop, accepting an optimizer, loss functions, and metrics,
+    A simple training step that implements the base TrainingStep class.
+    This training step, accepting an optimizer, loss functions, and metrics,
     allows training models that receive a single or multiple inputs and
     return a single or multiple outputs.
 
-    In particular, this training loop expects dataloaders to return a batch
+    In particular, this training step expects dataloaders to return a batch
     of data in a tuple of two or three elements. In the case of two elements,
     the first element is the input(s) and the second element is the expected output(s).
     In the case of three-element tuple, then the third element would be the sample
@@ -54,20 +53,16 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
 
     def __init__(
         self,
-        model: TModel,
         *,
         optimizer_fn: TOptimFn,
         loss: TLoss,
         loss_weights: TLossWeights | None = None,
         metrics: TMetrics | None = None,
-        device: str | torch.device = 'cpu',
     ) -> None:
         """
-        Construct a simple training loop that works with single- or multi-output models.
+        Construct a simple training step that works with single- or multi-output models.
 
         Parameters:
-            model: A model to train.
-
             optimizer_fn: A function that receives model's parameters and return an optimizer.
 
             loss: Loss functions. These loss functions should accept two positional
@@ -98,24 +93,26 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
 
                 Similar to the loss functions, these metrics must follow the
                 constraints (see `update_metrics()`).
-
-            device: The specified device to train the model on, default to 'cpu'.
         """
-        super().__init__(model, device=device)
-
-        self._optim = optimizer_fn(self.model.parameters())
+        self.optim_fn = optimizer_fn
         self._loss_fn = loss
         self._loss_weights = loss_weights
 
         self._train_metrics = metrics
         self._val_metrics = clone_metrics(metrics)
 
-        self._total_train_loss = 0.
-        self._nb_train_batches = 0
-        self._total_val_loss = 0.
-        self._nb_val_batches = 0
+    def init(self, model: nn.Module, device: TDevice) -> None:
+        self._optim = self.optim_fn(model.parameters())
 
-    def train_step(self, data: TSimpleData) -> dict[str, float]:
+        self._train_loss = Mean(device=device)
+        self._train_metrics = move_metrics_to_device(self._train_metrics,
+                                                     device)
+
+        self._val_loss = Mean(device=device)
+        self._val_metrics = move_metrics_to_device(self._val_metrics, device)
+
+    def train_step(self, model: nn.Module, data: TSimpleData,
+                   device: TDevice) -> dict[str, float]:
         """
         Perform one training step on the given batch data.
 
@@ -133,9 +130,9 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
             A dictionary containing metrics and loss values to show
             the training progress.
         """
-        self.model.train()
+        model = model.train()
 
-        loss, y_pred, y_true = self._forward_pass(data)
+        loss, y_pred, y_true = self._forward_pass(model, data, device)
         self._update_train_metrics(train_loss=loss,
                                    y_pred=y_pred,
                                    y_true=y_true)
@@ -149,7 +146,8 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
         return self.compute_train_metrics()
 
     @torch.no_grad()
-    def val_step(self, data: TSimpleData) -> dict[str, float]:
+    def val_step(self, model: nn.Module, data: TSimpleData,
+                 device: TDevice) -> dict[str, float]:
         """
         Perform one validation step on the given batch data.
 
@@ -160,28 +158,30 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
             A dictionary containing metrics and loss values to show the
             validation progress.
         """
-        self.model.eval()
+        model = model.eval()
 
-        loss, y_pred, y_true = self._forward_pass(data)
+        loss, y_pred, y_true = self._forward_pass(model, data, device)
         self._update_val_metrics(val_loss=loss, y_pred=y_pred, y_true=y_true)
 
         # Return the metrics.
         return self.compute_val_metrics()
 
     def _forward_pass(
-            self,
-            data: TSimpleData) -> Tuple[torch.Tensor, TOutputs, TOutputs]:
+            self, model: nn.Module, data: TSimpleData,
+            device: TDevice) -> Tuple[torch.Tensor, TOutputs, TOutputs]:
         """
         Perform a forward pass to obtain predicted values and loss.
 
         Parameters:
+            model: nn.Module
             data: Data returned by a dataloader.
+            device: Training device.
 
         Returns:
             A tuple of (loss, y_pred, y_true).
         """
         # Transfer data to the same device as model.
-        data = self._transfer_to_device(data)
+        data = self._transfer_to_device(data, device)
 
         # Unpack data.
         if len(data) == 2:
@@ -191,7 +191,7 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
             X, y, sample_weights = data
 
         # Feed the model with input data.
-        y_pred = self.model(X)
+        y_pred = model(X)
 
         # Calculate the loss and update metrics.
         loss = calc_loss(self._loss_fn,
@@ -204,35 +204,34 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
 
     @torch.no_grad()
     def reset_train_metrics(self):
-        self._total_train_loss = 0.0
-        self._nb_train_batches = 0
+        self._train_loss.reset()
         reset_metrics(self._train_metrics)
 
     @torch.no_grad()
     def reset_val_metrics(self):
-        self._total_val_loss = 0.0
-        self._nb_val_batches = 0
+        self._val_loss.reset()
         reset_metrics(self._val_metrics)
 
     @torch.no_grad()
     def compute_train_metrics(self) -> dict[str, float]:
         return {
-            'loss': self._total_train_loss / self._nb_train_batches,
+            'loss': self._train_loss.compute().detach().cpu().item(),
             **compute_metrics(self._train_metrics),
         }
 
     @torch.no_grad()
     def compute_val_metrics(self) -> dict[str, float]:
         return {
-            'loss': self._total_val_loss / self._nb_val_batches,
+            'loss': self._val_loss.compute().detach().cpu().item(),
             **compute_metrics(self._val_metrics),
         }
 
-    def _transfer_to_device(self, data: TSimpleData) -> TSimpleData:
-        X = transfer_data(data[0], self.device)
-        y = transfer_data(data[1], self.device)
+    def _transfer_to_device(self, data: TSimpleData,
+                            device: TDevice) -> TSimpleData:
+        X = transfer_data(data[0], device)
+        y = transfer_data(data[1], device)
         if len(data) == 3:
-            sample_weights = transfer_data(data[2], self.device)
+            sample_weights = transfer_data(data[2], device)
             return X, y, sample_weights
 
         return X, y
@@ -241,16 +240,14 @@ class SimpleTrainingLoop(TrainingLoop[TModel, TSimpleData]):
     def _update_train_metrics(self, *, train_loss: torch.Tensor,
                               y_pred: torch.Tensor,
                               y_true: torch.Tensor) -> None:
-        self._total_train_loss += train_loss.detach().cpu().item()
-        self._nb_train_batches += 1
+        self._train_loss.update(train_loss)
         update_metrics(self._train_metrics, y_pred=y_pred, y_true=y_true)
 
     @torch.no_grad()
     def _update_val_metrics(self, *, val_loss: torch.Tensor,
                             y_pred: torch.Tensor,
                             y_true: torch.Tensor) -> None:
-        self._total_val_loss += val_loss.detach().cpu().item()
-        self._nb_val_batches += 1
+        self._val_loss.update(val_loss)
         update_metrics(self._val_metrics, y_pred=y_pred, y_true=y_true)
 
 
@@ -474,6 +471,19 @@ def clone_metrics(metrics: TMetrics) -> TMetrics:
     else:
         name, metric = metrics
         return name, clone_metric(metric)
+
+
+def move_metrics_to_device(metrics: TMetrics, device: TDevice) -> TMetrics:
+    if isinstance(metrics, list):
+        return [(name, metric.to(device)) for name, metric in metrics]
+    elif isinstance(metrics, dict):
+        return {
+            key: move_metrics_to_device(submetrics, device)
+            for key, submetrics in metrics.items()
+        }
+    else:
+        name, metric = metrics
+        return name, metric.to(device)
 
 
 def reset_metrics(metrics: TMetrics) -> None:

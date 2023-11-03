@@ -5,3 +5,4 @@ from typing import TypeVar
 
 # Generics .
 TModel = TypeVar('TModel', bound=nn.Module)
+TData = TypeVar('TData')
