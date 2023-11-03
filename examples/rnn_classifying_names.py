@@ -1,6 +1,8 @@
 # %%
 # %cd ..
 
+from __future__ import annotations
+
 import glob
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -11,7 +13,7 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.optim import Adam
 from torch.utils.data import Dataset, DataLoader
 from torcheval.metrics import MulticlassAccuracy
-from training_loop import SimpleTrainingLoop
+from training_loop import TrainingLoop, SimpleTrainingStep
 from typing import Dict, Sequence, Tuple
 import unicodedata
 import string
@@ -203,7 +205,7 @@ class RNN(nn.Module):
         self.softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, input):
-        hidden = self.initHidden()
+        hidden = self.initHidden(device=input.device)
 
         # Loop through all timesteps.
         for t in range(input.shape[1]):
@@ -214,19 +216,22 @@ class RNN(nn.Module):
         output = self.softmax(output)
         return output
 
-    def initHidden(self):
-        return torch.zeros(1, self.hidden_size)
+    def initHidden(self, device):
+        return torch.zeros(1, self.hidden_size, device=device)
 
 
 n_hidden = 128
 rnn = RNN(n_letters, n_hidden, n_categories)
 
-loop = SimpleTrainingLoop(
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+loop = TrainingLoop(
     rnn,
-    optimizer_fn=lambda params: Adam(params, lr=0.002),
-    loss=nn.NLLLoss(),
-    metrics=('accuracy', MulticlassAccuracy(num_classes=n_categories)),
-    device='cuda' if torch.cuda.is_available() else 'cpu',
+    step=SimpleTrainingStep(
+        optimizer_fn=lambda params: Adam(params, lr=0.002),
+        loss=nn.NLLLoss(),
+        metrics=('accuracy', MulticlassAccuracy(num_classes=n_categories)),
+    ),
+    device=device,
 )
 train_history, val_history = loop.fit(train_dl, val_dl, epochs=1)
 
@@ -239,10 +244,12 @@ train_history.query('batch > -1').plot(x='batch', y='loss')
 # %%
 confusion_matrix = torch.zeros(n_categories, n_categories)
 
-for sample, label in val_dl:
-    pred = torch.argmax(rnn(sample)[0])
+with torch.no_grad():
+    for sample, label in val_dl:
+        sample = sample.to(device)
+        pred = torch.argmax(rnn(sample)[0].detach().cpu())
 
-    confusion_matrix[pred][label] += 1
+        confusion_matrix[pred][label] += 1
 
 # Normalize by dividing every row by its sum
 for i in range(n_categories):

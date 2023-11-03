@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -5,7 +7,7 @@ from torch.optim import SGD
 from torcheval.metrics import MulticlassAccuracy
 import torchvision
 import torchvision.transforms as transforms
-from training_loop import SimpleTrainingLoop
+from training_loop import TrainingLoop, SimpleTrainingStep
 
 # Tutorial from Pytorch:
 # https://pytorch.org/tutorials/beginner/introyt/trainingyt.html#the-training-loop
@@ -85,11 +87,13 @@ class GarmentClassifier(nn.Module):
 model = GarmentClassifier()
 
 # Training loop.
-loop = SimpleTrainingLoop(
+loop = TrainingLoop(
     model,
-    optimizer_fn=lambda params: SGD(params, lr=0.001, momentum=0.9),
-    loss=torch.nn.CrossEntropyLoss(),
-    metrics=('accuracy', MulticlassAccuracy(num_classes=len(classes))),
+    step=SimpleTrainingStep(
+        optimizer_fn=lambda params: SGD(params, lr=0.001, momentum=0.9),
+        loss=torch.nn.CrossEntropyLoss(),
+        metrics=('accuracy', MulticlassAccuracy(num_classes=len(classes))),
+    ),
     device='cuda' if torch.cuda.is_available() else 'cpu',
 )
 loop.fit(
