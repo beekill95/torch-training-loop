@@ -2,8 +2,25 @@
 
 ## Upcoming
 
-* __Breaking__: SimpleTrainingLoop will be replaced with SimpleTrainingStep, utilizing composition over inheritance.
 * Implement distributed training loop.
+* Implement `StateSerializable` interface for training loops and training steps to support training loop checkpoint.
+* Implement evaluation loop.
+
+## [v0.1.0](https://github.com/beekill95/torch-training-loop/releases/tag/v0.1.0) - 2023-11-03
+
+`TrainingLoop` instances can be initialized directly.
+They receives an instance of `TrainingStep` specifying the logic of training/validating a model.
+
+### Removed
+
+* __Breaking__: Remove `SimpleTrainingLoop`, replace it with `SimpleTrainingStep`.
+([#11](https://github.com/beekill95/torch-training-loop/pull/11))
+* Remove `tensorboard` dependency.
+
+### Added
+
+* Add usage section in README.
+* Add an example for training conditional GAN on Fashion MNIST with custom loop.
 
 ## [v0.0.3](https://github.com/beekill95/torch-training-loop/releases/tag/v0.0.3) - 2023-10-25
 
