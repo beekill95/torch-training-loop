@@ -16,7 +16,7 @@ from .utils import (
 )
 from ..callbacks import Callback
 from ..exceptions import StopTraining
-from ..types import TData, TModel
+from ..types import TData, TModel, TDevice
 
 _LOGGER = logging.getLogger('TrainingLoop')
 _VAL_METRICS_PREFIX = 'val_'
@@ -29,7 +29,7 @@ class TrainingLoop(Generic[TModel, TData]):
         model: TModel,
         step: TrainingStep[TModel, TData],
         *,
-        device: str | torch.device = 'cpu',
+        device: TDevice = 'cpu',
     ) -> None:
         """
         Base class for a training loop.

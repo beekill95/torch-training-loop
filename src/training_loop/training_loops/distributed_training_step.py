@@ -4,7 +4,7 @@ import abc
 import torch
 from typing import Dict, Generic, TYPE_CHECKING
 
-from ..types import TData
+from ..types import TData, TDevice
 
 if TYPE_CHECKING:
     from torch.nn.parallel import DistributedDataParallel as DDP
@@ -16,13 +16,13 @@ class DistributedTrainingStep(Generic[TData], abc.ABC):
     """
 
     @abc.abstractmethod
-    def init_distributed(self, model: DDP, device: int):
+    def init_distributed(self, model: DDP, device: TDevice):
         """Initialize the instance to be ready for training."""
         pass
 
     @abc.abstractmethod
     def train_step_distributed(self, model: DDP, data: TData,
-                               device: int) -> Dict[str, float]:
+                               device: TDevice) -> Dict[str, float]:
         """
         Perform one train step over the given data. Subclasses
         should implement this method to perform feed-forward
@@ -35,8 +35,7 @@ class DistributedTrainingStep(Generic[TData], abc.ABC):
                 The model to be trained.
             data: Any
                 A mini-batch returned by the train dataloader.
-            device: torch.device or str
-                Model's device.
+            device: Model's device.
 
         Returns: dict[str, float]
             Train metrics to be displayed in the progress bar.
@@ -46,7 +45,7 @@ class DistributedTrainingStep(Generic[TData], abc.ABC):
     @abc.abstractmethod
     @torch.no_grad()
     def val_step_distributed(self, model: DDP, data: TData,
-                             device: int) -> Dict[str, float]:
+                             device: TDevice) -> Dict[str, float]:
         """
         Perform one validation over the given data. Subclasses
         should implement this method to perform feed-forward
@@ -60,8 +59,7 @@ class DistributedTrainingStep(Generic[TData], abc.ABC):
                 The model to be trained.
             data: Any
                 A mini-batch returned by the validation dataloader.
-            device: torch.device or str
-                Model's device.
+            device: Model's device.
 
         Returns: dict[str, float]
             Validation metrics to be displayed in the progress bar.

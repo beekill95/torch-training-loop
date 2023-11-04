@@ -8,7 +8,8 @@ from torcheval.metrics.toolkit import clone_metric, sync_and_compute_collection
 from typing import TYPE_CHECKING, Callable, Iterator, Tuple, Sequence, Union, Dict, List
 
 from .distributed_training_step import DistributedTrainingStep
-from .training_step import TrainingStep, TDevice
+from .training_step import TrainingStep
+from ..types import TDevice
 
 if TYPE_CHECKING:
     from torch.nn.parallel import DistributedDataParallel as DDP

@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import abc
 import torch
-from typing import Union, Generic
+from typing import Generic
 
-from ..types import TData, TModel
-
-TDevice = Union[torch.device, str, int]
+from ..types import TData, TModel, TDevice
 
 
 class TrainingStep(Generic[TModel, TData], abc.ABC):

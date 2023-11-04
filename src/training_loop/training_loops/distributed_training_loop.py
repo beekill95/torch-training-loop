@@ -20,7 +20,7 @@ from .utils import (
 )
 from ..callbacks.callback import Callback
 from ..exceptions import StopTraining
-from ..types import TData
+from ..types import TData, TDevice
 
 _LOGGER = logging.getLogger('DistributedTrainingLoop')
 _VAL_METRICS_PREFIX = 'val_'
@@ -46,11 +46,19 @@ class DistributedTrainingLoop(Generic[TData]):
     _MAIN_PROCESS = 0
 
     def __init__(self, model: DDP, step: DistributedTrainingStep[TData], *,
-                 rank: int, device: int | None) -> None:
+                 rank: int, device: TDevice) -> None:
         self._model = model
         self._step = step
         self._rank = rank
         self._device = device
+
+    @property
+    def device(self):
+        return self._device
+
+    @property
+    def model(self):
+        return self._model
 
     def fit(
         self,
