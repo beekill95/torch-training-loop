@@ -6,7 +6,7 @@ from typing import Union, Generic
 
 from ..types import TData, TModel
 
-TDevice = Union[torch.device, str]
+TDevice = Union[torch.device, str, int]
 
 
 class TrainingStep(Generic[TModel, TData], abc.ABC):

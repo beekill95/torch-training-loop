@@ -4,10 +4,14 @@ from collections import ChainMap
 import torch
 from torch import nn, optim
 from torcheval.metrics import Metric, Mean
-from torcheval.metrics.toolkit import clone_metric
-from typing import Callable, Iterator, Tuple, Sequence, Union, Dict, List
+from torcheval.metrics.toolkit import clone_metric, sync_and_compute_collection
+from typing import TYPE_CHECKING, Callable, Iterator, Tuple, Sequence, Union, Dict, List
 
+from .distributed_training_step import DistributedTrainingStep
 from .training_step import TrainingStep, TDevice
+
+if TYPE_CHECKING:
+    from torch.nn.parallel import DistributedDataParallel as DDP
 
 # Loss Functions.
 TLossFn = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
@@ -31,9 +35,13 @@ TSimpleData = Union[Tuple[TInputs, TOutputs], Tuple[TInputs, TOutputs,
                                                     TSampleWeights]]
 
 
-class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData]):
+class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData],
+                         DistributedTrainingStep[TSimpleData]):
     """
-    A simple training step that implements the base TrainingStep class.
+    A simple training step that implements both the base TrainingStep
+    and the DistributedTrainingStep classes. Thus, it can be used in
+    single CPU/GPU training, or in single-node multi-gpu training.
+
     This training step, accepting an optimizer, loss functions, and metrics,
     allows training models that receive a single or multiple inputs and
     return a single or multiple outputs.
@@ -61,6 +69,7 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData]):
     ) -> None:
         """
         Construct a simple training step that works with single- or multi-output models.
+        The step can be used in both `TrainingLoop` or `DistributedTrainingLoop`.
 
         Parameters:
             optimizer_fn: A function that receives model's parameters and return an optimizer.
@@ -111,6 +120,9 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData]):
         self._val_loss = Mean(device=device)
         self._val_metrics = move_metrics_to_device(self._val_metrics, device)
 
+    def init_distributed(self, model: DDP, device: int):
+        self.init(model, device)
+
     def train_step(self, model: nn.Module, data: TSimpleData,
                    device: TDevice) -> dict[str, float]:
         """
@@ -145,6 +157,10 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData]):
         # Return the metrics.
         return self.compute_train_metrics()
 
+    def train_step_distributed(self, model: DDP, data: TSimpleData,
+                               device: int) -> Dict[str, float]:
+        return self.train_step(model, data, device)
+
     @torch.no_grad()
     def val_step(self, model: nn.Module, data: TSimpleData,
                  device: TDevice) -> dict[str, float]:
@@ -165,6 +181,11 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData]):
 
         # Return the metrics.
         return self.compute_val_metrics()
+
+    @torch.no_grad()
+    def val_step_distributed(self, model: DDP, data: TSimpleData,
+                             device: int) -> Dict[str, float]:
+        return self.val_step(model, data, device)
 
     def _forward_pass(
             self, model: nn.Module, data: TSimpleData,
@@ -208,9 +229,17 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData]):
         reset_metrics(self._train_metrics)
 
     @torch.no_grad()
+    def reset_train_metrics_distributed(self):
+        self.reset_train_metrics()
+
+    @torch.no_grad()
     def reset_val_metrics(self):
         self._val_loss.reset()
         reset_metrics(self._val_metrics)
+
+    @torch.no_grad()
+    def reset_val_metrics_distributed(self):
+        self.reset_val_metrics()
 
     @torch.no_grad()
     def compute_train_metrics(self) -> dict[str, float]:
@@ -220,11 +249,19 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData]):
         }
 
     @torch.no_grad()
+    def compute_train_metrics_synced(self):
+        return compute_metrics_synced(self._train_loss, self._train_metrics)
+
+    @torch.no_grad()
     def compute_val_metrics(self) -> dict[str, float]:
         return {
             'loss': self._val_loss.compute().detach().cpu().item(),
             **compute_metrics(self._val_metrics),
         }
+
+    @torch.no_grad()
+    def compute_val_metrics_synced(self):
+        return compute_metrics_synced(self._val_loss, self._val_metrics)
 
     def _transfer_to_device(self, data: TSimpleData,
                             device: TDevice) -> TSimpleData:
@@ -251,7 +288,7 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData]):
         update_metrics(self._val_metrics, y_pred=y_pred, y_true=y_true)
 
 
-def transfer_data(data: TInputs, device: str | torch.device) -> TInputs:
+def transfer_data(data: TInputs, device: TDevice) -> TInputs:
     if isinstance(data, torch.Tensor):
         return data.to(device)
     elif isinstance(data, Sequence):
@@ -566,3 +603,29 @@ def compute_metrics(metrics: TMetrics) -> dict[str, float]:
     else:
         name, metric = metrics
         return {name: compute(metric)}
+
+
+def compute_metrics_synced(loss: Metric,
+                           metrics: TMetrics) -> Dict[str, float]:
+
+    def to_dict(metrics: TMetrics) -> Dict[str, Metric]:
+        if isinstance(metrics, list):
+            return {name: metric for name, metric in metrics}
+        elif isinstance(metrics, dict):
+            dicts = [{
+                f'{key}_{name}': metric
+                for name, metric in to_dict(submetrics).items()
+            } for key, submetrics in metrics.items()]
+
+            return dict(ChainMap(*dicts))
+        else:
+            name, metric = metrics
+            return {name: metric}
+
+    metrics = {**to_dict(metrics), 'loss': loss}
+    metrics = sync_and_compute_collection(metrics)
+
+    return {
+        name: metric.detach().cpu().item()
+        for name, metric in metrics.items()
+    }
