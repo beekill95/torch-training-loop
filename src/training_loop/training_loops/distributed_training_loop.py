@@ -254,10 +254,10 @@ class DistributedTrainingLoop(Generic[TData]):
 
     def _sync_and_avg_metrics(self, metrics: Dict[str,
                                                   float]) -> Dict[str, float]:
-        values = torch.tensor(np.asarray(list(metrics.values())),
-                              device=self._device)
+        values = np.asarray(list(metrics.values())) / dist.get_world_size()
+        values = torch.tensor(values, device=self._device)
 
-        values = dist.reduce(values, self._MAIN_PROCESS, dist.ReduceOp.AVG)
+        values = dist.reduce(values, self._MAIN_PROCESS, dist.ReduceOp.SUM)
 
         if values is not None:
             return {k: v for k, v in zip(metrics.keys(), values)}
