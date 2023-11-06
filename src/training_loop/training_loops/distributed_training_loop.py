@@ -17,6 +17,7 @@ from .utils import (
     TRAIN_DATALOADER_SEPARATOR,
     train_dataloader_separator,
     prefix_val_metrics_keys,
+    hasfunc,
 )
 from ..callbacks.callback import Callback
 from ..exceptions import StopTraining
@@ -89,6 +90,14 @@ class DistributedTrainingLoop(Generic[TData]):
         total_batches = len(train_dataloader) + len(val_dataloader) + 1
 
         for epoch in range(1, epochs + 1):
+            # Ensure that `set_epoch` function of dataloaders are called
+            # to make shuffling data of each process is correct.
+            if hasfunc(train_dataloader.sampler, 'set_epoch'):
+                train_dataloader.sampler.set_epoch(epoch)
+
+            if hasfunc(val_dataloader.sampler, 'set_epoch'):
+                val_dataloader.sampler.set_epoch(epoch)
+
             ## Epoch Start.
             self._handle(callbacks, 'epoch_begin', epoch=epoch)
             step.reset_train_metrics_distributed()
@@ -265,10 +274,10 @@ class DistributedTrainingLoop(Generic[TData]):
         values = np.asarray(list(metrics.values())) / dist.get_world_size()
         values = torch.tensor(values, device=self._device)
 
-        values = dist.reduce(values, self._MAIN_PROCESS, dist.ReduceOp.SUM)
+        dist.reduce(values, self._MAIN_PROCESS, dist.ReduceOp.SUM)
 
-        if values is not None:
-            return {k: v for k, v in zip(metrics.keys(), values)}
-
-        # Just return the original metrics unchanged.
-        return metrics
+        if self._is_main_process:
+            return {k: v for k, v in zip(metrics.keys(), values.cpu().numpy())}
+        else:
+            # Just return the original metrics unchanged.
+            return metrics
