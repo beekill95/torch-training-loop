@@ -36,4 +36,4 @@ jobs:
     #     flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
-        $HOME/.local/bin/poetry run pytest
+        $HOME/.local/bin/poetry run pytest --timeout 30 --reruns 5

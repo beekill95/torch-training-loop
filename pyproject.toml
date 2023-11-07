@@ -32,6 +32,8 @@ tqdm = "*"
 pytest = "^7.4.2"
 pytest-mock = "^3.11.1"
 pre-commit = "^3.4.0"
+pytest-rerunfailures = "^12.0"
+pytest-timeout = "^2.2.0"
 
 
 [tool.poetry.group.examples.dependencies]
