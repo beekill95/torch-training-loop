@@ -4,6 +4,7 @@ from contextlib import contextmanager
 import os
 import pandas as pd
 import pytest
+import random
 import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
@@ -27,6 +28,11 @@ def backend():
     return 'gloo'
 
 
+@pytest.fixture
+def master_port():
+    return random.randint(10000, 65000)
+
+
 def fake_callback():
     callback = Callback()
 
@@ -44,9 +50,9 @@ def fake_callback():
 
 
 @contextmanager
-def setup_backend(backend, world_size, rank):
+def setup_backend(backend, world_size, port, rank):
     os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12355'
+    os.environ['MASTER_PORT'] = str(port)
     dist.init_process_group(backend, rank=rank, world_size=world_size)
     try:
         yield
@@ -56,8 +62,8 @@ def setup_backend(backend, world_size, rank):
         dist.destroy_process_group()
 
 
-def _test_broadcast_stop_training_signal(rank, world_size, backend):
-    with setup_backend(backend, world_size, rank):
+def _test_broadcast_stop_training_signal(rank, port, world_size, backend):
+    with setup_backend(backend, world_size, port, rank):
         loop = DistributedTrainingLoop(
             MagicMock(DDP),
             step=MagicMock(DistributedTrainingStep),
@@ -69,16 +75,16 @@ def _test_broadcast_stop_training_signal(rank, world_size, backend):
         assert stop_training
 
 
-def test_broadcast_stop_training_signal(backend, world_size):
+def test_broadcast_stop_training_signal(backend, world_size, master_port):
     mp.spawn(
         _test_broadcast_stop_training_signal,
-        args=(world_size, backend),
+        args=(master_port, world_size, backend),
         nprocs=world_size,
     )
 
 
-def _test_broadcast_no_stop_training_signal(rank, world_size, backend):
-    with setup_backend(backend, world_size, rank):
+def _test_broadcast_no_stop_training_signal(rank, port, world_size, backend):
+    with setup_backend(backend, world_size, port, rank):
         loop = DistributedTrainingLoop(
             MagicMock(DDP),
             step=MagicMock(DistributedTrainingStep),
@@ -90,21 +96,21 @@ def _test_broadcast_no_stop_training_signal(rank, world_size, backend):
         assert not stop_training
 
 
-def test_broadcast_no_stop_training_signal(backend, world_size):
+def test_broadcast_no_stop_training_signal(backend, world_size, master_port):
     mp.spawn(
         _test_broadcast_no_stop_training_signal,
-        args=(world_size, backend),
+        args=(master_port, world_size, backend),
         nprocs=world_size,
     )
 
 
-def _test_sync_avg_metrics(rank, world_size, backend):
+def _test_sync_avg_metrics(rank, port, world_size, backend):
     metrics = {
         'loss': rank * 1.0,
         'f1': 1.0 - 0.1 * rank,
     }
 
-    with setup_backend(backend, world_size, rank):
+    with setup_backend(backend, world_size, port, rank):
         loop = DistributedTrainingLoop(
             MagicMock(DDP),
             step=MagicMock(DistributedTrainingStep),
@@ -124,10 +130,10 @@ def _test_sync_avg_metrics(rank, world_size, backend):
             assert results['loss'] == pytest.approx(avg_loss)
 
 
-def test_sync_avg_metrics(backend, world_size):
+def test_sync_avg_metrics(backend, world_size, master_port):
     mp.spawn(
         _test_sync_avg_metrics,
-        args=(world_size, backend),
+        args=(master_port, world_size, backend),
         nprocs=world_size,
     )
 
@@ -180,8 +186,8 @@ class TestDistributedTrainingLoop:
         return dataloader
 
     def _test_fit_method_made_calls_with_correct_arguments(
-            self, rank, world_size, backend):
-        with setup_backend(backend, world_size, rank):
+            self, rank, port, world_size, backend):
+        with setup_backend(backend, world_size, port, rank):
             step = MagicMock(DistributedTrainingStep)
             step.train_step_distributed.side_effect = self.train_step_return_values
             step.val_step_distributed.side_effect = self.val_step_return_values
@@ -340,16 +346,16 @@ class TestDistributedTrainingLoop:
                 callback.on_training_end.assert_not_called()
 
     def test_fit_method_made_calls_with_correct_arguments(
-            self, backend, world_size):
+            self, backend, world_size, master_port):
         mp.spawn(
             self._test_fit_method_made_calls_with_correct_arguments,
-            args=(world_size, backend),
+            args=(master_port, world_size, backend),
             nprocs=world_size,
         )
 
-    def _test_fit_method_return_correct_histories(self, rank, world_size,
+    def _test_fit_method_return_correct_histories(self, rank, port, world_size,
                                                   backend):
-        with setup_backend(backend, world_size, rank):
+        with setup_backend(backend, world_size, port, rank):
             step = MagicMock(DistributedTrainingStep)
             step.train_step_distributed.side_effect = self.train_step_return_values
             step.val_step_distributed.side_effect = self.val_step_return_values
@@ -436,10 +442,11 @@ class TestDistributedTrainingLoop:
             else:
                 assert histories is None
 
-    def test_fit_method_return_correct_histories(self, world_size, backend):
+    def test_fit_method_return_correct_histories(self, world_size, backend,
+                                                 master_port):
         mp.spawn(
             self._test_fit_method_return_correct_histories,
-            args=(world_size, backend),
+            args=(master_port, world_size, backend),
             nprocs=world_size,
         )
 
@@ -513,8 +520,8 @@ class TestCallsOrder:
 
         return dataloader
 
-    def _test_one_epoch(self, rank, world_size, backend):
-        with setup_backend(backend, world_size, rank):
+    def _test_one_epoch(self, rank, port, world_size, backend):
+        with setup_backend(backend, world_size, port, rank):
             calls = []
 
             callback = self.create_recorded_callback(calls)
@@ -594,13 +601,13 @@ class TestCallsOrder:
                     # End training.
                 ]
 
-    def test_one_epoch(self, world_size, backend):
+    def test_one_epoch(self, world_size, backend, master_port):
         mp.spawn(self._test_one_epoch,
-                 args=(world_size, backend),
+                 args=(master_port, world_size, backend),
                  nprocs=world_size)
 
-    def _test_three_epochs(self, rank, world_size, backend):
-        with setup_backend(backend, world_size, rank):
+    def _test_three_epochs(self, rank, port, world_size, backend):
+        with setup_backend(backend, world_size, port, rank):
             calls = []
 
             callback = self.create_recorded_callback(calls)
@@ -772,12 +779,12 @@ class TestCallsOrder:
                     # End training.
                 ]
 
-    def test_three_epochs(self, world_size, backend):
+    def test_three_epochs(self, world_size, backend, master_port):
         mp.spawn(self._test_three_epochs,
-                 args=(world_size, backend),
+                 args=(master_port, world_size, backend),
                  nprocs=world_size)
 
-    def _test_three_epochs_with_early_stopping(self, rank, world_size,
+    def _test_three_epochs_with_early_stopping(self, rank, port, world_size,
                                                backend):
 
         class EarlyStoppingAtSecondEpochEnd(Callback):
@@ -786,7 +793,7 @@ class TestCallsOrder:
                 if epoch == 2:
                     raise StopTraining()
 
-        with setup_backend(backend, world_size, rank):
+        with setup_backend(backend, world_size, port, rank):
             calls = []
 
             callback = self.create_recorded_callback(calls)
@@ -916,7 +923,8 @@ class TestCallsOrder:
                     # Early stopping occurs, thus end training.
                 ]
 
-    def test_three_epochs_with_early_stopping(self, world_size, backend):
+    def test_three_epochs_with_early_stopping(self, world_size, backend,
+                                              master_port):
         mp.spawn(self._test_three_epochs_with_early_stopping,
-                 args=(world_size, backend),
+                 args=(master_port, world_size, backend),
                  nprocs=world_size)
