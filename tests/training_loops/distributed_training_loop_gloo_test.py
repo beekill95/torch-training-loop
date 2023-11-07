@@ -19,7 +19,7 @@ from .utils import assert_dataframes_equal
 
 @pytest.fixture
 def world_size():
-    return 4
+    return 2
 
 
 @pytest.fixture
