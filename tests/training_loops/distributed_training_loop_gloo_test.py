@@ -5,6 +5,7 @@ import os
 import pandas as pd
 import pytest
 import random
+import socket
 import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
@@ -30,7 +31,10 @@ def backend():
 
 @pytest.fixture
 def master_port():
-    return random.randint(10000, 65000)
+    with socket.socket() as s:
+        # Bind to a free port provided by the host.
+        s.bind(('', 0))
+        return s.getsockname()[1]
 
 
 def fake_callback():
