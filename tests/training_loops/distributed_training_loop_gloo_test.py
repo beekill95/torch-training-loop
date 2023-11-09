@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from datetime import timedelta
 import os
 import pandas as pd
 import pytest
@@ -55,7 +56,10 @@ def fake_callback():
 def setup_backend(backend, world_size, port, rank):
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = str(port)
-    dist.init_process_group(backend, rank=rank, world_size=world_size)
+    dist.init_process_group(backend,
+                            rank=rank,
+                            world_size=world_size,
+                            timeout=timedelta(seconds=10))
     try:
         yield
     finally:
