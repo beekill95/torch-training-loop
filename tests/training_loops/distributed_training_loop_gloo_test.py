@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from contextlib import contextmanager
+from functools import wraps
 import os
 import pandas as pd
 import pytest
 import socket
+import time
 import torch.distributed as dist
 import torch.multiprocessing as mp
+from torch.multiprocessing.spawn import ProcessContext
 from torch.utils.data import DataLoader
 from torch.nn.parallel import DistributedDataParallel as DDP
 from training_loop.callbacks import Callback
@@ -16,6 +20,57 @@ from unittest.mock import MagicMock, call, DEFAULT
 from training_loop.exceptions import StopTraining
 
 from .utils import assert_dataframes_equal
+
+# How long should we wait for each test before giving up.
+DEFAULT_NUMBER_WAITS = 150
+
+
+def wait_processes_finished(number_waits: int | None = None):
+    """
+    A decorator to wait for processes to finish. The total waiting
+    time is `0.2 * number_waits`. The default total waiting time is 30 seconds.
+    """
+
+    if number_waits is None:
+        number_waits = DEFAULT_NUMBER_WAITS
+
+    # How many seconds should we wait for processes to join.
+    processes_wait_time = 0.1
+
+    # How many seconds should we wait between consecutive waits.
+    wait_delay = 0.1
+
+    # In total, how many seconds should we wait for the test function to finish.
+    wait_time = (processes_wait_time + wait_delay) * number_waits
+
+    def decorator(test_func: Callable[..., ProcessContext]):
+
+        @wraps(test_func)
+        def processes_waited(*args, **kwargs):
+            context = test_func(*args, **kwargs)
+            assert isinstance(context, ProcessContext), \
+                    'Test function should return `ProcessContext`'
+
+            for _ in range(number_waits):
+                if context.join(processes_wait_time):
+                    return
+                else:
+                    time.sleep(wait_delay)
+
+            # After we waited but processes din't join, terminate all processes.
+            for process in context.processes:
+                if process.is_alive():
+                    process.terminate()
+
+                process.join()
+
+            # Fail the test case due to timeout.
+            pytest.fail('Multiprocessing test didn\'t finish within '
+                        f'{wait_time} seconds.')
+
+        return processes_waited
+
+    return decorator
 
 
 @pytest.fixture
@@ -77,12 +132,15 @@ def _test_broadcast_stop_training_signal(rank, port, world_size, backend):
         assert stop_training
 
 
+@wait_processes_finished()
 def test_broadcast_stop_training_signal(backend, world_size, master_port):
-    mp.spawn(
+    context = mp.spawn(
         _test_broadcast_stop_training_signal,
         args=(master_port, world_size, backend),
         nprocs=world_size,
+        join=False,
     )
+    return context
 
 
 def _test_broadcast_no_stop_training_signal(rank, port, world_size, backend):
@@ -98,12 +156,15 @@ def _test_broadcast_no_stop_training_signal(rank, port, world_size, backend):
         assert not stop_training
 
 
+@wait_processes_finished()
 def test_broadcast_no_stop_training_signal(backend, world_size, master_port):
-    mp.spawn(
+    context = mp.spawn(
         _test_broadcast_no_stop_training_signal,
         args=(master_port, world_size, backend),
         nprocs=world_size,
+        join=False,
     )
+    return context
 
 
 def _test_sync_avg_metrics(rank, port, world_size, backend):
@@ -132,12 +193,15 @@ def _test_sync_avg_metrics(rank, port, world_size, backend):
             assert results['loss'] == pytest.approx(avg_loss)
 
 
+@wait_processes_finished()
 def test_sync_avg_metrics(backend, world_size, master_port):
-    mp.spawn(
+    context = mp.spawn(
         _test_sync_avg_metrics,
         args=(master_port, world_size, backend),
         nprocs=world_size,
+        join=False,
     )
+    return context
 
 
 class TestDistributedTrainingLoop:
@@ -347,13 +411,16 @@ class TestDistributedTrainingLoop:
                 callback.on_epoch_end.assert_not_called()
                 callback.on_training_end.assert_not_called()
 
+    @wait_processes_finished()
     def test_fit_method_made_calls_with_correct_arguments(
             self, backend, world_size, master_port):
-        mp.spawn(
+        context = mp.spawn(
             self._test_fit_method_made_calls_with_correct_arguments,
             args=(master_port, world_size, backend),
             nprocs=world_size,
+            join=False,
         )
+        return context
 
     def _test_fit_method_return_correct_histories(self, rank, port, world_size,
                                                   backend):
@@ -444,13 +511,16 @@ class TestDistributedTrainingLoop:
             else:
                 assert histories is None
 
+    @wait_processes_finished()
     def test_fit_method_return_correct_histories(self, world_size, backend,
                                                  master_port):
-        mp.spawn(
+        context = mp.spawn(
             self._test_fit_method_return_correct_histories,
             args=(master_port, world_size, backend),
             nprocs=world_size,
+            join=False,
         )
+        return context
 
 
 class TestCallsOrder:
@@ -603,10 +673,15 @@ class TestCallsOrder:
                     # End training.
                 ]
 
+    @wait_processes_finished()
     def test_one_epoch(self, world_size, backend, master_port):
-        mp.spawn(self._test_one_epoch,
-                 args=(master_port, world_size, backend),
-                 nprocs=world_size)
+        context = mp.spawn(
+            self._test_one_epoch,
+            args=(master_port, world_size, backend),
+            nprocs=world_size,
+            join=False,
+        )
+        return context
 
     def _test_three_epochs(self, rank, port, world_size, backend):
         with setup_backend(backend, world_size, port, rank):
@@ -781,10 +856,15 @@ class TestCallsOrder:
                     # End training.
                 ]
 
+    @wait_processes_finished()
     def test_three_epochs(self, world_size, backend, master_port):
-        mp.spawn(self._test_three_epochs,
-                 args=(master_port, world_size, backend),
-                 nprocs=world_size)
+        context = mp.spawn(
+            self._test_three_epochs,
+            args=(master_port, world_size, backend),
+            nprocs=world_size,
+            join=False,
+        )
+        return context
 
     def _test_three_epochs_with_early_stopping(self, rank, port, world_size,
                                                backend):
@@ -925,8 +1005,13 @@ class TestCallsOrder:
                     # Early stopping occurs, thus end training.
                 ]
 
+    @wait_processes_finished()
     def test_three_epochs_with_early_stopping(self, world_size, backend,
                                               master_port):
-        mp.spawn(self._test_three_epochs_with_early_stopping,
-                 args=(master_port, world_size, backend),
-                 nprocs=world_size)
+        context = mp.spawn(
+            self._test_three_epochs_with_early_stopping,
+            args=(master_port, world_size, backend),
+            nprocs=world_size,
+            join=False,
+        )
+        return context
