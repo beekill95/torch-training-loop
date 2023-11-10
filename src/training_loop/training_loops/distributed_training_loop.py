@@ -41,6 +41,10 @@ def _execute_on_main_process(func):
 
 
 class DistributedTrainingLoop(Generic[TData]):
+    """
+    Distributed training loop that supports training distributed data parallel on
+    single-node multigpus machine.
+    """
 
     # The main process in which: callbacks are called, metrics are synced and stored,
     # and where stop training signal is broadcasted from.
@@ -69,7 +73,47 @@ class DistributedTrainingLoop(Generic[TData]):
         epochs: int,
         callbacks: List[Callback[DDP]] | None = None,
         average_metrics_after_batch_end: bool = True,
-    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    ) -> Tuple[pd.DataFrame, pd.DataFrame] | None:
+        """
+        A skeleton for training and validating a distributed data parallel model on
+        the corresponding train/val datasets. This function will handle
+        calling `train_step_distributed()`, `val_step_distributed()` of the distributed
+        training step class, and calling callbacks' events. Moreover, it will also
+        handle displaying training progress on the main process using `tqdm`. In order
+        for it to display the progress, training step should override
+        `train_step_distributed()` and `val_step_distributed()` and return losses
+        and metrics to be displayed in the progress bar.
+        If `average_metrics_after_batch_end` flag is True, then the class will
+        average the metrics across process, otherwise, the metrics displayed will
+        be from the main prrocess. Furthermore, training step subclasses should override
+        the `reset_*_metrics_distributed()` and `compute_*_metrics_synced()` in
+        order to reset and compute metrics at the beginning and the end of each epoch.
+
+        Parameters:
+            train_dataloader: DataLoader
+                Dataloader for loading training dataset. It should implement `__len__()`
+                method in order to display the training progress.
+            val_dataloader: DataLoader
+                Dataloader for loading validation dataset. It should implement
+                `__len__()` method in order to display the validation progress.
+            epochs: int
+                Number of epochs to train the model.
+            callbacks: a list of callbacks or None.
+                A list of callbacks to handle train/validation events, default is None.
+                Note: only the main process handles calling the callbacks.
+            average_metrics_after_batch_end: bool
+                Whether to average metrics across processes before displaying in the
+                progress bar. Set the flag to True will report more accurate metrics,
+                but it might come with performance hit. Default to True.
+
+        Returns: (pd.DataFrame, pd.DataFrame) | None
+            A tuple of pandas dataframes containing training and validation history
+            (i.e, the metrics results after each batch and epoch), respectively.
+            The key of each dataframe is (epoch, batch). Rows with batch = -1 are
+            the metrics/losses for the whole epochs.
+            Only on the main process does the tuple be returned. On other processes,
+            None is returned.
+        """
         train_history = []
         val_history = []
 
