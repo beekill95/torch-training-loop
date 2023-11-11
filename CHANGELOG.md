@@ -2,9 +2,15 @@
 
 ## Upcoming
 
-* Implement distributed training loop.
 * Implement `StateSerializable` interface for training loops and training steps to support training loop checkpoint.
 * Implement evaluation loop.
+* Support mixed-precision training.
+
+## [v0.1.1](https://github.com/beekill95/torch-training-loop/releases/tag/v0.1.1) - 2023-11-11
+
+### Added
+
+* Implement distributed training loop. ([#12](https://github.com/beekill95/torch-training-loop/pull/12))
 
 ## [v0.1.0](https://github.com/beekill95/torch-training-loop/releases/tag/v0.1.0) - 2023-11-03
 
