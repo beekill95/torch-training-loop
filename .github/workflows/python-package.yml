@@ -50,4 +50,5 @@ jobs:
       with:
         timeout_minutes: 5
         command: poetry run pytest --reruns 5 --reruns-delay 1
+        new-command-on-retry: poetry run pytest --reruns 5 --reruns-delay 1 --last-failed
         max_attempts: 5
