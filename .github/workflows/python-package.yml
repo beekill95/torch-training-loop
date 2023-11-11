@@ -24,14 +24,17 @@ jobs:
       uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Load cached Poetry installation
-      id: cached-poetry
-      uses: actions/cache@v3
-      with:
-        path: ~/.local  # the path depends on the OS
-        key: poetry-${{ runner.os }}-py-${{ matrix.python-version }}-0  # increment to reset cache
+    # TODO:
+    # We could cache poetry installation, but I don't like
+    # having to manually manage cache invalidation.
+    # - name: Load cached Poetry installation
+    #   id: cached-poetry
+    #   uses: actions/cache@v3
+    #   with:
+    #     path: ~/.local  # the path depends on the OS
+    #     key: poetry-${{ runner.os }}-py-${{ matrix.python-version }}-0  # increment to reset cache
     - name: Install Poetry Action
-      if: steps.cached-poetry.outputs.cache-hit != 'true'
+      # if: steps.cached-poetry.outputs.cache-hit != 'true'
       uses: snok/install-poetry@v1.3.4
       with:
         version: 1.5.1
