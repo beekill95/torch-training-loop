@@ -24,10 +24,33 @@ jobs:
       uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
+    # TODO:
+    # We could cache poetry installation, but I don't like
+    # having to manually manage cache invalidation.
+    # - name: Load cached Poetry installation
+    #   id: cached-poetry
+    #   uses: actions/cache@v3
+    #   with:
+    #     path: ~/.local  # the path depends on the OS
+    #     key: poetry-${{ runner.os }}-py-${{ matrix.python-version }}-0  # increment to reset cache
+    - name: Install Poetry Action
+      # if: steps.cached-poetry.outputs.cache-hit != 'true'
+      uses: snok/install-poetry@v1.3.4
+      with:
+        version: 1.5.1
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+    - name: Load cached venv
+      id: cached-poetry-dependencies
+      uses: actions/cache@v3
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-py-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
     - name: Install dependencies
-      run: |
-        curl -sSL https://install.python-poetry.org | python3 -
-        $HOME/.local/bin/poetry install
+      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+      run: poetry install --no-interaction --no-root --only main,dev
+    - name: Install project
+      run: poetry install --no-interaction --only-root
     # - name: Lint with flake8
     #   run: |
     #     # stop the build if there are Python syntax errors or undefined names
@@ -38,5 +61,6 @@ jobs:
       uses: nick-fields/retry@v2
       with:
         timeout_minutes: 5
-        command: $HOME/.local/bin/poetry run pytest --reruns 5 --reruns-delay 1
+        command: poetry run pytest --reruns 5 --reruns-delay 1
+        new_command_on_retry: poetry run pytest --reruns 5 --reruns-delay 1 --last-failed
         max_attempts: 5
