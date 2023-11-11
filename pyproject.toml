@@ -33,11 +33,11 @@ pytest = "^7.4.2"
 pytest-mock = "^3.11.1"
 pre-commit = "^3.4.0"
 pytest-rerunfailures = "^12.0"
+tensorboard = "*"
 
 
 [tool.poetry.group.examples.dependencies]
 torchvision = { version = "*", source = "torch-cpu" }
-tensorboard = "*"
 jupyterlab = "^4.0.7"
 jupytext = "^1.15.2"
 matplotlib = "^3.6.0"
