@@ -24,10 +24,21 @@ jobs:
       uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
+    - name: Install Poetry Action
+      uses: snok/install-poetry@v1.3.4
+      with:
+        version: 1.5.1
+    - name: Load cached venv
+      id: cached-poetry-dependencies
+      uses: actions/cache@v3
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
     - name: Install dependencies
-      run: |
-        curl -sSL https://install.python-poetry.org | python3 -
-        $HOME/.local/bin/poetry install
+      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+      run: poetry install --no-interaction --no-root --only main,dev
+    - name: Install project
+      run: poetry install --no-interaction --only-root
     # - name: Lint with flake8
     #   run: |
     #     # stop the build if there are Python syntax errors or undefined names
@@ -38,5 +49,5 @@ jobs:
       uses: nick-fields/retry@v2
       with:
         timeout_minutes: 5
-        command: $HOME/.local/bin/poetry run pytest --reruns 5 --reruns-delay 1
+        command: poetry run pytest --reruns 5 --reruns-delay 1
         max_attempts: 5
