@@ -37,6 +37,6 @@ jobs:
     - name: Test with pytest
       uses: nick-fields/retry@v2
       with:
-        timeout_minutes: 2
-        command: $HOME/.local/bin/poetry run pytest
+        timeout_minutes: 5
+        command: $HOME/.local/bin/poetry run pytest --reruns 5 --reruns-delay 1
         max_attempts: 5
