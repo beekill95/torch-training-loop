@@ -2,21 +2,27 @@ from __future__ import annotations
 
 import abc
 import torch
-from typing import Generic
+from typing import Dict, Generic, TYPE_CHECKING
 
-from ..types import TData, TModel, TDevice
+from ..types import TData, TDevice
+
+if TYPE_CHECKING:
+    from torch.nn.parallel import DistributedDataParallel as DDP
 
 
-class TrainingStep(Generic[TModel, TData], abc.ABC):
+class DistributedTrainingStep(Generic[TData], abc.ABC):
+    """
+    An interface for distributed training logic on a single-node multi-gpu machine.
+    """
 
     @abc.abstractmethod
-    def init(self, model: TModel, device: TDevice) -> None:
+    def init_distributed(self, model: DDP, device: TDevice):
         """Initialize the instance to be ready for training."""
         pass
 
     @abc.abstractmethod
-    def train_step(self, model: TModel, data: TData,
-                   device: TDevice) -> dict[str, float]:
+    def train_step_distributed(self, model: DDP, data: TData,
+                               device: TDevice) -> Dict[str, float]:
         """
         Perform one train step over the given data. Subclasses
         should implement this method to perform feed-forward
@@ -29,8 +35,7 @@ class TrainingStep(Generic[TModel, TData], abc.ABC):
                 The model to be trained.
             data: Any
                 A mini-batch returned by the train dataloader.
-            device: torch.device or str
-                Model's device.
+            device: Model's device.
 
         Returns: dict[str, float]
             Train metrics to be displayed in the progress bar.
@@ -39,8 +44,8 @@ class TrainingStep(Generic[TModel, TData], abc.ABC):
 
     @abc.abstractmethod
     @torch.no_grad()
-    def val_step(self, model: TModel, data: TData,
-                 device: TDevice) -> dict[str, float]:
+    def val_step_distributed(self, model: DDP, data: TData,
+                             device: TDevice) -> Dict[str, float]:
         """
         Perform one validation over the given data. Subclasses
         should implement this method to perform feed-forward
@@ -54,8 +59,7 @@ class TrainingStep(Generic[TModel, TData], abc.ABC):
                 The model to be trained.
             data: Any
                 A mini-batch returned by the validation dataloader.
-            device: torch.device or str
-                Model's device.
+            device: Model's device.
 
         Returns: dict[str, float]
             Validation metrics to be displayed in the progress bar.
@@ -64,35 +68,34 @@ class TrainingStep(Generic[TModel, TData], abc.ABC):
 
     @abc.abstractmethod
     @torch.no_grad()
-    def reset_train_metrics(self):
-        """Reset training metrics, will be used at the start of an epoch."""
+    def reset_train_metrics_distributed(self):
+        """Reset training metrics of the current process at the start of an epoch."""
         pass
 
     @abc.abstractmethod
     @torch.no_grad()
-    def reset_val_metrics(self):
-        """Reset validation metrics, will be used at the start of an epoch."""
+    def reset_val_metrics_distributed(self):
+        """Reset validation metrics of the current process at the start of an epoch."""
         pass
 
     @abc.abstractmethod
     @torch.no_grad()
-    def compute_train_metrics(self) -> dict[str, float]:
+    def compute_train_metrics_synced(self):
         """
-        Compute training metrics, will be used at the end of an epoch.
+        Sync & compute train metrics across processes at the end of an epoch.
 
         Returns: dict[str, float]
-            Training metrics to be displayed in the progress bar at the end of an epoch.
+            Train metrics to be displayed in the progress bar at the end of epoch.
         """
         pass
 
     @abc.abstractmethod
     @torch.no_grad()
-    def compute_val_metrics(self) -> dict[str, float]:
+    def compute_val_metrics_synced(self):
         """
-        Compute validation metrics, will be used at the end of an epoch.
+        Sync & compute val metrics across processes at the end of an epoch.
 
         Returns: dict[str, float]
-            Validation metrics to be displayed in the progress bar
-            at the end of an epoch.
+            Validation metrics to be displayed in the progress bar at the end of epoch.
         """
         pass

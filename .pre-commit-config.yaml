@@ -9,3 +9,4 @@ repos:
     -   id: check-yaml
     -   id: check-added-large-files
     -   id: name-tests-test
+        exclude: tests/training_loops/utils.py

@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-import torch
 from torch import nn
 from torch.utils.data import DataLoader
-from training_loop.callbacks import Callback
 from training_loop import TrainingLoop, TrainingStep
-from training_loop.training_loops.training_step import TDevice
+from training_loop.callbacks import Callback
+from training_loop.exceptions import StopTraining
+from training_loop.types import TDevice
 from typing import Any
 from unittest.mock import DEFAULT, MagicMock, call
 
-from training_loop.exceptions import StopTraining
+from .utils import assert_dataframes_equal
 
 
 class EmptyTrainingStep(TrainingStep[nn.Module, Any]):
@@ -691,8 +691,3 @@ class TestTrainingLoopFitCallsOrder:
             # End training.
             'on_training_end',
         ]
-
-
-def assert_dataframes_equal(df1: pd.DataFrame, df2: pd.DataFrame) -> bool:
-    for idx in df1.index:
-        assert df1.loc[idx].to_dict() == df2.loc[idx].to_dict()
