@@ -153,91 +153,87 @@ class DistributedTrainingLoop(Generic[TData]):
                 enumerate(val_dataloader, start=1),
             )
 
-            if self._is_main_process:
-                progress_bar = tqdm(dataloader, total=total_batches)
+            with tqdm(total=total_batches,
+                      disable=not self._is_main_process) as progress_bar:
                 progress_bar.set_description(
                     f'Epoch {epoch}/{epochs} - Training')
 
-                dataloader = progress_bar
-            else:
-                progress_bar = None
+                is_training = True
+                for batch, data in dataloader:
+                    if data is TRAIN_DATALOADER_SEPARATOR:
+                        is_training = False
 
-            is_training = True
-            for batch, data in dataloader:
-                if data is TRAIN_DATALOADER_SEPARATOR:
-                    is_training = False
-
-                    if progress_bar is not None:
                         progress_bar.set_description(
                             f'Epoch {epoch}/{epochs} - Validating')
-                    continue
+                        continue
 
-                self._handle(
-                    callbacks,
-                    'train_batch_begin' if is_training else 'val_batch_begin',
-                    batch=batch)
+                    self._handle(callbacks,
+                                 'train_batch_begin'
+                                 if is_training else 'val_batch_begin',
+                                 batch=batch)
 
-                if is_training:
-                    logs = step.train_step_distributed(model=self._model,
-                                                       data=data,
-                                                       device=self._device)
-                else:
-                    with torch.no_grad():
-                        logs = step.val_step_distributed(model=self._model,
-                                                         data=data,
-                                                         device=self._device)
-                        logs = prefix_val_metrics_keys(logs,
-                                                       _VAL_METRICS_PREFIX)
+                    if is_training:
+                        logs = step.train_step_distributed(model=self._model,
+                                                           data=data,
+                                                           device=self._device)
+                    else:
+                        with torch.no_grad():
+                            logs = step.val_step_distributed(
+                                model=self._model,
+                                data=data,
+                                device=self._device)
+                            logs = prefix_val_metrics_keys(
+                                logs, _VAL_METRICS_PREFIX)
 
-                self._handle(
-                    callbacks,
-                    'train_batch_end' if is_training else 'val_batch_end',
-                    batch=batch,
-                    logs=logs)
+                    self._handle(
+                        callbacks,
+                        'train_batch_end' if is_training else 'val_batch_end',
+                        batch=batch,
+                        logs=logs)
 
-                if average_metrics_after_batch_end:
-                    logs = self._sync_and_avg_metrics(logs)
+                    if average_metrics_after_batch_end:
+                        logs = self._sync_and_avg_metrics(logs)
 
-                if progress_bar is not None:
                     # Display progress.
                     progress_bar.set_postfix(logs)
 
-                if self._is_main_process:
-                    # Record progress history.
-                    if is_training:
-                        train_history.append({
-                            **logs,
-                            'batch': batch,
-                            'epoch': epoch,
-                        })
-                    else:
-                        val_history.append({
-                            **logs,
-                            'val_batch': batch,
-                            'val_epoch': epoch,
-                        })
+                    if self._is_main_process:
+                        # Record progress history.
+                        if is_training:
+                            train_history.append({
+                                **logs,
+                                'batch': batch,
+                                'epoch': epoch,
+                            })
+                        else:
+                            val_history.append({
+                                **logs,
+                                'val_batch': batch,
+                                'val_epoch': epoch,
+                            })
 
-                    ## Batch End.
+                        ## Batch End.
 
-            # Gather training and validation logs when an epoch ends.
-            logs = {
-                **step.compute_train_metrics_synced(),
-                **prefix_val_metrics_keys(step.compute_val_metrics_synced(), _VAL_METRICS_PREFIX),
-            }
+                # Gather training and validation logs when an epoch ends.
+                logs = {
+                    **step.compute_train_metrics_synced(),
+                    **prefix_val_metrics_keys(
+                        step.compute_val_metrics_synced(), _VAL_METRICS_PREFIX),
+                }
 
-            stop_training = self._handle(
-                callbacks,
-                'epoch_end',
-                epoch=epoch,
-                logs=logs,
-            )
-            stop_training = self._broadcast_stop_training(stop_training)
+                stop_training = self._handle(
+                    callbacks,
+                    'epoch_end',
+                    epoch=epoch,
+                    logs=logs,
+                )
+                stop_training = self._broadcast_stop_training(stop_training)
 
-            # Update progress bar.
-            if progress_bar is not None:
+                # Update progress bar.
                 progress_bar.set_description(
                     f'Epoch {epoch}/{epochs} - Finished')
                 progress_bar.set_postfix(logs)
+                progress_bar.refresh()
 
             # Record history.
             if self._is_main_process:

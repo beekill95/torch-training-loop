@@ -114,101 +114,105 @@ class TrainingLoop(Generic[TModel, TData]):
             )
 
             # Display progress bar.
-            progress_bar = tqdm(dataloader, total=total_batches)
-            progress_bar.set_description(f'Epoch {epoch}/{epochs} - Training')
+            with tqdm(total=total_batches) as progress_bar:
+                progress_bar.set_description(
+                    f'Epoch {epoch}/{epochs} - Training')
 
-            is_training = True
-            for batch, data in progress_bar:
-                ## Batch Start.
+                is_training = True
+                for batch, data in dataloader:
+                    ## Batch Start.
+                    progress_bar.update()
 
-                # Transition to validation.
-                if data is TRAIN_DATALOADER_SEPARATOR:
-                    is_training = False
-                    progress_bar.set_description(
-                        f'Epoch {epoch}/{epochs} - Validating')
-                    continue
+                    # Transition to validation.
+                    if data is TRAIN_DATALOADER_SEPARATOR:
+                        is_training = False
+                        progress_bar.set_description(
+                            f'Epoch {epoch}/{epochs} - Validating')
+                        continue
 
-                self._handle(
+                    self._handle(callbacks,
+                                 'train_batch_begin'
+                                 if is_training else 'val_batch_begin',
+                                 batch=batch)
+
+                    if is_training:
+                        logs = step.train_step(model, data, device)
+                    else:
+                        with torch.no_grad():
+                            logs = step.val_step(model, data, device)
+                            logs = prefix_val_metrics_keys(
+                                logs, _VAL_METRICS_PREFIX)
+
+                    self._handle(
+                        callbacks,
+                        'train_batch_end' if is_training else 'val_batch_end',
+                        batch=batch,
+                        logs=logs)
+
+                    # Display progress.
+                    progress_bar.set_postfix(logs)
+
+                    # Record progress history.
+                    if is_training:
+                        train_history.append({
+                            **logs,
+                            'batch': batch,
+                            'epoch': epoch,
+                        })
+                    else:
+                        val_history.append({
+                            **logs,
+                            'val_batch': batch,
+                            'val_epoch': epoch,
+                        })
+
+                    ## Batch End.
+
+                # Gather training and validation logs when an epoch ends.
+                logs = {
+                    **step.compute_train_metrics(),
+                    **prefix_val_metrics_keys(step.compute_val_metrics(), _VAL_METRICS_PREFIX),
+                }
+
+                stop_training = self._handle(
                     callbacks,
-                    'train_batch_begin' if is_training else 'val_batch_begin',
-                    batch=batch)
-
-                if is_training:
-                    logs = step.train_step(model, data, device)
-                else:
-                    with torch.no_grad():
-                        logs = step.val_step(model, data, device)
-                        logs = prefix_val_metrics_keys(logs,
-                                                       _VAL_METRICS_PREFIX)
-
-                self._handle(
-                    callbacks,
-                    'train_batch_end' if is_training else 'val_batch_end',
-                    batch=batch,
-                    logs=logs)
-
-                # Display progress.
-                progress_bar.set_postfix(logs)
-
-                # Record progress history.
-                if is_training:
-                    train_history.append({
-                        **logs,
-                        'batch': batch,
-                        'epoch': epoch,
-                    })
-                else:
-                    val_history.append({
-                        **logs,
-                        'val_batch': batch,
-                        'val_epoch': epoch,
-                    })
-
-                ## Batch End.
-
-            # Gather training and validation logs when an epoch ends.
-            logs = {
-                **step.compute_train_metrics(),
-                **prefix_val_metrics_keys(step.compute_val_metrics(), _VAL_METRICS_PREFIX),
-            }
-
-            stop_training = self._handle(
-                callbacks,
-                'epoch_end',
-                epoch=epoch,
-                logs=logs,
-            )
-
-            # Update progress bar.
-            progress_bar.set_description(f'Epoch {epoch}/{epochs} - Finished')
-            progress_bar.set_postfix(logs)
-
-            # Record history.
-            train_history.append({
-                **{
-                    k: v
-                    for k, v in logs.items() if not k.startswith(_VAL_METRICS_PREFIX)
-                },
-                'epoch': epoch,
-                'batch': -1,
-            })
-            val_history.append({
-                **{
-                    k: v
-                    for k, v in logs.items() if k.startswith(_VAL_METRICS_PREFIX)
-                },
-                'val_epoch': epoch,
-                'val_batch': -1,
-            })
-
-            # Stop training if a signal was raised.
-            if stop_training:
-                _LOGGER.info(
-                    f'Stop training at epoch {epoch} due `StopTraining` raised.'
+                    'epoch_end',
+                    epoch=epoch,
+                    logs=logs,
                 )
-                break
 
-            ## Epoch End.
+                # Update progress bar.
+                progress_bar.set_description(
+                    f'Epoch {epoch}/{epochs} - Finished')
+                progress_bar.set_postfix(logs)
+                progress_bar.refresh()
+
+                # Record history.
+                train_history.append({
+                    **{
+                        k: v
+                        for k, v in logs.items() if not k.startswith(_VAL_METRICS_PREFIX)
+                    },
+                    'epoch': epoch,
+                    'batch': -1,
+                })
+                val_history.append({
+                    **{
+                        k: v
+                        for k, v in logs.items() if k.startswith(_VAL_METRICS_PREFIX)
+                    },
+                    'val_epoch': epoch,
+                    'val_batch': -1,
+                })
+
+                # Stop training if a signal was raised.
+                if stop_training:
+                    _LOGGER.info(
+                        f'Stop training at epoch {epoch} due `StopTraining` raised.'
+                    )
+                    break
+
+                ## Epoch End.
 
         self._handle(callbacks, 'training_end')
 
