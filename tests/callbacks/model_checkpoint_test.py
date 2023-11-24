@@ -1,9 +1,13 @@
+from __future__ import annotations
+
 from pathlib import Path
+from unittest.mock import Mock
+from unittest.mock import patch
+
 import pytest
 from torch import nn
 from training_loop import TrainingLoop
 from training_loop.callbacks import ModelCheckpoint
-from unittest.mock import patch, Mock
 
 
 @pytest.fixture
@@ -91,8 +95,7 @@ def test_model_is_saved_when_performance_increase(fake_model, fake_loop):
         torch_save.assert_called_once_with(fake_model, 'model.pth')
 
 
-def test_model_weight_is_saved_when_performance_decrease(
-        fake_model, fake_loop):
+def test_model_weight_is_saved_when_performance_decrease(fake_model, fake_loop):
     fake_state_dict = {'weight': (1, 2, 3)}
     fake_model.state_dict.return_value = fake_state_dict
 
@@ -127,8 +130,7 @@ def test_model_weight_is_saved_when_performance_decrease(
         torch_save.assert_called_once_with(fake_state_dict, 'model.pth')
 
 
-def test_save_model_at_every_epoch_with_callable_filename(
-        fake_model, fake_loop):
+def test_save_model_at_every_epoch_with_callable_filename(fake_model, fake_loop):
     callback = ModelCheckpoint(
         lambda epoch, logs: Path(f'model_{epoch}_{logs["f1"]}.pth'),
         save_weights_only=False,

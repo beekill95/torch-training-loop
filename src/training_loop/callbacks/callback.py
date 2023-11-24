@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Generic, Literal, TYPE_CHECKING
+from typing import Generic
+from typing import Literal
+from typing import TYPE_CHECKING
 
 from ..exceptions import StopTraining
 from ..types import TModel

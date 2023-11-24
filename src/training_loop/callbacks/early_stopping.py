@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from copy import deepcopy
 import logging
-import numpy as np
-from torch import nn
+from copy import deepcopy
 from typing import Literal
 
-from .callback import Callback
+import numpy as np
+from torch import nn
+
 from ..exceptions import StopTraining
+from .callback import Callback
 
 _LOGGER = logging.getLogger('EarlyStopping')
 
@@ -69,9 +70,8 @@ class EarlyStopping(Callback[nn.Module]):
             self._wait += 1
 
         if self._wait > self._patience:
-            _LOGGER.info(
-                f'Training doesnt improve model performance on {self._monitor}'
-                'for the last {self._wait} epochs. Early stopping!')
+            _LOGGER.info(f'Training doesnt improve model performance on {self._monitor}'
+                         'for the last {self._wait} epochs. Early stopping!')
             raise StopTraining()
 
     def on_training_end(self):

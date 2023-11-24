@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 from torch import nn
 from training_loop import TrainingLoop
 from training_loop.callbacks import Callback
-from unittest.mock import MagicMock
-
 from training_loop.exceptions import StopTraining
 
 

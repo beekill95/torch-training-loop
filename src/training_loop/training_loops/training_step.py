@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import abc
-import torch
 from typing import Generic
 
-from ..types import TData, TModel, TDevice
+import torch
+
+from ..types import TData
+from ..types import TDevice
+from ..types import TModel
 
 
 class TrainingStep(Generic[TModel, TData], abc.ABC):
@@ -39,8 +42,7 @@ class TrainingStep(Generic[TModel, TData], abc.ABC):
 
     @abc.abstractmethod
     @torch.no_grad()
-    def val_step(self, model: TModel, data: TData,
-                 device: TDevice) -> dict[str, float]:
+    def val_step(self, model: TModel, data: TData, device: TDevice) -> dict[str, float]:
         """
         Perform one validation over the given data. Subclasses
         should implement this method to perform feed-forward

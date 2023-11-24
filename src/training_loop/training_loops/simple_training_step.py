@@ -1,29 +1,39 @@
 from __future__ import annotations
 
 from collections import ChainMap
-import torch
-from torch import nn, optim
-from torcheval.metrics import Metric, Mean
-from torcheval.metrics.toolkit import clone_metric, sync_and_compute_collection
-from typing import TYPE_CHECKING, Callable, Iterator, Tuple, Sequence, Union, Dict, List
+from typing import Callable
+from typing import Dict
+from typing import Iterator
+from typing import List
+from typing import Sequence
+from typing import Tuple
+from typing import TYPE_CHECKING
+from typing import Union
 
+import torch
+from torch import nn
+from torch import optim
+from torcheval.metrics import Mean
+from torcheval.metrics import Metric
+from torcheval.metrics.toolkit import clone_metric
+from torcheval.metrics.toolkit import sync_and_compute_collection
+
+from ..types import TDevice
 from .distributed_training_step import DistributedTrainingStep
 from .training_step import TrainingStep
-from ..types import TDevice
 
 if TYPE_CHECKING:
     from torch.nn.parallel import DistributedDataParallel as DDP
 
 # Loss Functions.
 TLossFn = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
-TLoss = Union[TLossFn, Sequence[TLossFn], Dict[str, Union[TLossFn,
-                                                          Sequence[TLossFn]]]]
+TLoss = Union[TLossFn, Sequence[TLossFn], Dict[str, Union[TLossFn, Sequence[TLossFn]]]]
 TLossWeights = Union[Sequence[float], Dict[str, Union[float, Sequence[float]]]]
 
 # Metrics.
 NamedMetric = Tuple[str, Metric[torch.Tensor]]
-TMetrics = Union[NamedMetric, List[NamedMetric],
-                 Dict[str, Union[NamedMetric, List[NamedMetric]]]]
+TMetrics = Union[NamedMetric, List[NamedMetric], Dict[str, Union[NamedMetric,
+                                                                 List[NamedMetric]]]]
 
 # Optimizer function.
 TOptimFn = Callable[[Iterator[nn.Parameter]], optim.Optimizer]
@@ -32,8 +42,7 @@ TOptimFn = Callable[[Iterator[nn.Parameter]], optim.Optimizer]
 TInputs = Union[torch.Tensor, Sequence[torch.Tensor], Dict[str, torch.Tensor]]
 TOutputs = TInputs
 TSampleWeights = TOutputs
-TSimpleData = Union[Tuple[TInputs, TOutputs], Tuple[TInputs, TOutputs,
-                                                    TSampleWeights]]
+TSimpleData = Union[Tuple[TInputs, TOutputs], Tuple[TInputs, TOutputs, TSampleWeights]]
 
 
 class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData],
@@ -73,7 +82,8 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData],
         The step can be used in both `TrainingLoop` or `DistributedTrainingLoop`.
 
         Parameters:
-            optimizer_fn: A function that receives model's parameters and return an optimizer.
+            optimizer_fn: A function that receives model's parameters and
+            return an optimizer.
 
             loss: Loss functions. These loss functions should accept two positional
                 parameters (`input` and `target`) and should return loss value for each
@@ -115,8 +125,7 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData],
         self._optim = self.optim_fn(model.parameters())
 
         self._train_loss = Mean(device=device)
-        self._train_metrics = move_metrics_to_device(self._train_metrics,
-                                                     device)
+        self._train_metrics = move_metrics_to_device(self._train_metrics, device)
 
         self._val_loss = Mean(device=device)
         self._val_metrics = move_metrics_to_device(self._val_metrics, device)
@@ -146,9 +155,7 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData],
         model = model.train()
 
         loss, y_pred, y_true = self._forward_pass(model, data, device)
-        self._update_train_metrics(train_loss=loss,
-                                   y_pred=y_pred,
-                                   y_true=y_true)
+        self._update_train_metrics(train_loss=loss, y_pred=y_pred, y_true=y_true)
 
         # Perform back-propagation.
         self._optim.zero_grad()
@@ -159,7 +166,7 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData],
         return self.compute_train_metrics()
 
     def train_step_distributed(self, model: DDP, data: TSimpleData,
-                               device: int) -> Dict[str, float]:
+                               device: int) -> dict[str, float]:
         return self.train_step(model, data, device)
 
     @torch.no_grad()
@@ -185,12 +192,11 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData],
 
     @torch.no_grad()
     def val_step_distributed(self, model: DDP, data: TSimpleData,
-                             device: int) -> Dict[str, float]:
+                             device: int) -> dict[str, float]:
         return self.val_step(model, data, device)
 
-    def _forward_pass(
-            self, model: nn.Module, data: TSimpleData,
-            device: TDevice) -> Tuple[torch.Tensor, TOutputs, TOutputs]:
+    def _forward_pass(self, model: nn.Module, data: TSimpleData,
+                      device: TDevice) -> tuple[torch.Tensor, TOutputs, TOutputs]:
         """
         Perform a forward pass to obtain predicted values and loss.
 
@@ -216,11 +222,12 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData],
         y_pred = model(X)
 
         # Calculate the loss and update metrics.
-        loss = calc_loss(self._loss_fn,
-                         y_pred=y_pred,
-                         y_true=y,
-                         loss_weights=self._loss_weights,
-                         sample_weights=sample_weights)
+        loss = calc_loss(
+            self._loss_fn,
+            y_pred=y_pred,
+            y_true=y,
+            loss_weights=self._loss_weights,
+            sample_weights=sample_weights)
 
         return loss, y_pred, y
 
@@ -264,8 +271,7 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData],
     def compute_val_metrics_synced(self):
         return compute_metrics_synced(self._val_loss, self._val_metrics)
 
-    def _transfer_to_device(self, data: TSimpleData,
-                            device: TDevice) -> TSimpleData:
+    def _transfer_to_device(self, data: TSimpleData, device: TDevice) -> TSimpleData:
         X = transfer_data(data[0], device)
         y = transfer_data(data[1], device)
         if len(data) == 3:
@@ -275,15 +281,13 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData],
         return X, y
 
     @torch.no_grad()
-    def _update_train_metrics(self, *, train_loss: torch.Tensor,
-                              y_pred: torch.Tensor,
+    def _update_train_metrics(self, *, train_loss: torch.Tensor, y_pred: torch.Tensor,
                               y_true: torch.Tensor) -> None:
         self._train_loss.update(train_loss)
         update_metrics(self._train_metrics, y_pred=y_pred, y_true=y_true)
 
     @torch.no_grad()
-    def _update_val_metrics(self, *, val_loss: torch.Tensor,
-                            y_pred: torch.Tensor,
+    def _update_val_metrics(self, *, val_loss: torch.Tensor, y_pred: torch.Tensor,
                             y_true: torch.Tensor) -> None:
         self._val_loss.update(val_loss)
         update_metrics(self._val_metrics, y_pred=y_pred, y_true=y_true)
@@ -327,8 +331,7 @@ def _calc_single_loss(
     Returns: A scalar tensor.
     """
     assert isinstance(input, torch.Tensor) and isinstance(
-        target, torch.Tensor) and (weight is None
-                                   or isinstance(weight, torch.Tensor))
+        target, torch.Tensor) and (weight is None or isinstance(weight, torch.Tensor))
 
     # Loss functions in torch expect input first, and then target.
     loss = loss_fn(input, target)
@@ -351,7 +354,7 @@ def _calc_single_loss(
         elif weight.ndim == 1 and weight.shape[0] == loss.shape[0]:
             # Append new dimensions to the *right* of weight to match
             # that of loss.
-            weight = weight.view((-1, ) + (1, ) * (loss.ndim - 1))
+            weight = weight.view((-1,) + (1,) * (loss.ndim - 1))
 
             return torch.mean(loss * weight)
 
@@ -442,16 +445,15 @@ def calc_loss(
 
         losses = {
             key:
-            calc_loss(
-                loss_fns[key],
-                y_pred=y_pred[key],
-                y_true=y_true[key],
-                sample_weights=sample_weights[key]
-                if sample_weights is not None else None,
-                loss_weights=loss_weights[key]
-                if loss_weights is not None else None,
-            )
-            for key in loss_fns.keys()
+                calc_loss(
+                    loss_fns[key],
+                    y_pred=y_pred[key],
+                    y_true=y_true[key],
+                    sample_weights=sample_weights[key]
+                    if sample_weights is not None else None,
+                    loss_weights=loss_weights[key]
+                    if loss_weights is not None else None,
+                ) for key in loss_fns.keys()
         }
         return _loss_weighted_average(losses, loss_weights)
 
@@ -462,39 +464,32 @@ def calc_loss(
             ), 'The number of loss functions should match the number of outputs.'
 
             if sample_weights is None:
-                sample_weights = (None, ) * len(loss_fns)
+                sample_weights = (None,) * len(loss_fns)
 
             losses = []
-            for loss_fn, input, target, sample_weight in zip(
-                    loss_fns, y_pred, y_true, sample_weights):
+            for loss_fn, input, target, sample_weight in zip(loss_fns, y_pred, y_true,
+                                                             sample_weights):
                 losses.append(
-                    _calc_single_loss(loss_fn,
-                                      input=input,
-                                      target=target,
-                                      weight=sample_weight))
+                    _calc_single_loss(
+                        loss_fn, input=input, target=target, weight=sample_weight))
 
         elif isinstance(y_pred, torch.Tensor):
             # WONDERING: in this case, can the sample weights be a sequence?
-            # If it is, then we can have different sample weights for each loss function.
-            # Should we allow it?
+            # If it is, then we can have different sample weights for each loss
+            # function. Should we allow it?
             losses = [
-                _calc_single_loss(loss_fn,
-                                  input=y_pred,
-                                  target=y_true,
-                                  weight=sample_weights)
+                _calc_single_loss(
+                    loss_fn, input=y_pred, target=y_true, weight=sample_weights)
                 for loss_fn in loss_fns
             ]
         else:
-            raise ValueError(
-                f'Unsupported output type for loss calculation: {y_pred}')
+            raise ValueError(f'Unsupported output type for loss calculation: {y_pred}')
 
         return _loss_weighted_average(losses, loss_weights)
 
     else:
-        return _calc_single_loss(loss_fns,
-                                 input=y_pred,
-                                 target=y_true,
-                                 weight=sample_weights)
+        return _calc_single_loss(
+            loss_fns, input=y_pred, target=y_true, weight=sample_weights)
 
 
 # Metrics-Related Functions.
@@ -502,10 +497,7 @@ def clone_metrics(metrics: TMetrics) -> TMetrics:
     if isinstance(metrics, list):
         return [(name, clone_metric(metric)) for name, metric in metrics]
     elif isinstance(metrics, dict):
-        return {
-            key: clone_metrics(submetrics)
-            for key, submetrics in metrics.items()
-        }
+        return {key: clone_metrics(submetrics) for key, submetrics in metrics.items()}
     else:
         name, metric = metrics
         return name, clone_metric(metric)
@@ -582,8 +574,7 @@ def update_metrics(
                 ' must either be a single tensor or a sequence of tensors.')
     else:
         # `metrics` is just a single metric.
-        assert isinstance(y_true, torch.Tensor) and isinstance(
-            y_pred, torch.Tensor)
+        assert isinstance(y_true, torch.Tensor) and isinstance(y_pred, torch.Tensor)
         metrics[1].update(y_pred, y_true)
 
 
@@ -598,7 +589,8 @@ def compute_metrics(metrics: TMetrics) -> dict[str, float]:
         results = [{
             f'{key}_{name}': value
             for name, value in compute_metrics(submetrics).items()
-        } for key, submetrics in metrics.items()]
+        }
+                   for key, submetrics in metrics.items()]
 
         return dict(ChainMap(*results))
     else:
@@ -606,16 +598,14 @@ def compute_metrics(metrics: TMetrics) -> dict[str, float]:
         return {name: compute(metric)}
 
 
-def compute_metrics_synced(loss: Metric,
-                           metrics: TMetrics) -> Dict[str, float]:
+def compute_metrics_synced(loss: Metric, metrics: TMetrics) -> dict[str, float]:
 
-    def to_dict(metrics: TMetrics) -> Dict[str, Metric]:
+    def to_dict(metrics: TMetrics) -> dict[str, Metric]:
         if isinstance(metrics, list):
             return {name: metric for name, metric in metrics}
         elif isinstance(metrics, dict):
             dicts = [{
-                f'{key}_{name}': metric
-                for name, metric in to_dict(submetrics).items()
+                f'{key}_{name}': metric for name, metric in to_dict(submetrics).items()
             } for key, submetrics in metrics.items()]
 
             return dict(ChainMap(*dicts))
@@ -626,7 +616,4 @@ def compute_metrics_synced(loss: Metric,
     metrics = {**to_dict(metrics), 'loss': loss}
     metrics = sync_and_compute_collection(metrics)
 
-    return {
-        name: metric.detach().cpu().item()
-        for name, metric in metrics.items()
-    }
+    return {name: metric.detach().cpu().item() for name, metric in metrics.items()}

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import abc
-import torch
-from typing import Dict, Generic, TYPE_CHECKING
+from typing import Generic
+from typing import TYPE_CHECKING
 
-from ..types import TData, TDevice
+import torch
+
+from ..types import TData
+from ..types import TDevice
 
 if TYPE_CHECKING:
     from torch.nn.parallel import DistributedDataParallel as DDP
@@ -22,7 +25,7 @@ class DistributedTrainingStep(Generic[TData], abc.ABC):
 
     @abc.abstractmethod
     def train_step_distributed(self, model: DDP, data: TData,
-                               device: TDevice) -> Dict[str, float]:
+                               device: TDevice) -> dict[str, float]:
         """
         Perform one train step over the given data. Subclasses
         should implement this method to perform feed-forward
@@ -45,7 +48,7 @@ class DistributedTrainingStep(Generic[TData], abc.ABC):
     @abc.abstractmethod
     @torch.no_grad()
     def val_step_distributed(self, model: DDP, data: TData,
-                             device: TDevice) -> Dict[str, float]:
+                             device: TDevice) -> dict[str, float]:
         """
         Perform one validation over the given data. Subclasses
         should implement this method to perform feed-forward

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from unittest.mock import Mock
+
 import pytest
 from torch import nn
 from training_loop import TrainingLoop
 from training_loop.callbacks import EarlyStopping
 from training_loop.exceptions import StopTraining
-from unittest.mock import Mock
 
 
 def test_raise_StopTraining_when_monitored_value_not_decreasing():
@@ -21,9 +22,7 @@ def test_raise_StopTraining_when_monitored_value_not_decreasing():
 
     # The callback should raise StopTraining if it waits long enough.
     with pytest.raises(StopTraining):
-        callback.on('epoch_end',
-                    epoch=len(losses) - 1,
-                    logs={'loss': losses[-1]})
+        callback.on('epoch_end', epoch=len(losses) - 1, logs={'loss': losses[-1]})
 
 
 def test_raise_StopTraining_when_monitored_value_not_increasing():

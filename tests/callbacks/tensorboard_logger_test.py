@@ -1,12 +1,14 @@
+from __future__ import annotations
+
+from unittest.mock import Mock
+from unittest.mock import patch
+
 from torch.utils.tensorboard import SummaryWriter
 from training_loop.callbacks import TensorBoardLogger
-from unittest.mock import Mock, patch
 
 
 def test_log_metrics_at_every_batch():
-    callback = TensorBoardLogger('./logs',
-                                 update_freq=1,
-                                 update_freq_unit='batch')
+    callback = TensorBoardLogger('./logs', update_freq=1, update_freq_unit='batch')
 
     with patch('torch.utils.tensorboard') as fake_tensorboard:
         fake_summary_writer = Mock(SummaryWriter)
@@ -34,9 +36,7 @@ def test_log_metrics_at_every_batch():
 
 
 def test_log_metrics_at_fixed_batch_interval():
-    callback = TensorBoardLogger('./logs',
-                                 update_freq=5,
-                                 update_freq_unit='batch')
+    callback = TensorBoardLogger('./logs', update_freq=5, update_freq_unit='batch')
 
     with patch('torch.utils.tensorboard') as fake_tensorboard:
         fake_summary_writer = Mock(SummaryWriter)
@@ -72,9 +72,7 @@ def test_log_metrics_at_fixed_batch_interval():
 
 
 def test_log_metrics_at_every_epoch():
-    callback = TensorBoardLogger('./logs',
-                                 update_freq=1,
-                                 update_freq_unit='epoch')
+    callback = TensorBoardLogger('./logs', update_freq=1, update_freq_unit='epoch')
 
     with patch('torch.utils.tensorboard') as fake_tensorboard:
         fake_summary_writer = Mock(SummaryWriter)
@@ -84,14 +82,10 @@ def test_log_metrics_at_every_epoch():
 
         for epoch in range(10):
             for batch in range(10):
-                callback.on('train_batch_end',
-                            batch=batch,
-                            logs={'batch': batch})
+                callback.on('train_batch_end', batch=batch, logs={'batch': batch})
                 fake_summary_writer.add_scalars.assert_not_called()
 
-                callback.on('val_batch_end',
-                            batch=batch,
-                            logs={'batch': batch})
+                callback.on('val_batch_end', batch=batch, logs={'batch': batch})
                 fake_summary_writer.add_scalars.assert_not_called()
 
             # Epoch end will not log anything.
@@ -102,9 +96,7 @@ def test_log_metrics_at_every_epoch():
 
 
 def test_log_metrics_at_fixed_epoch_interval():
-    callback = TensorBoardLogger('./logs',
-                                 update_freq=5,
-                                 update_freq_unit='epoch')
+    callback = TensorBoardLogger('./logs', update_freq=5, update_freq_unit='epoch')
 
     with patch('torch.utils.tensorboard') as fake_tensorboard:
         fake_summary_writer = Mock(SummaryWriter)
@@ -115,14 +107,10 @@ def test_log_metrics_at_fixed_epoch_interval():
         for epoch in range(50):
             for batch in range(10):
                 # Batch ends will not log anything.
-                callback.on('train_batch_end',
-                            batch=batch,
-                            logs={'batch': batch})
+                callback.on('train_batch_end', batch=batch, logs={'batch': batch})
                 fake_summary_writer.add_scalars.assert_not_called()
 
-                callback.on('val_batch_end',
-                            batch=batch,
-                            logs={'batch': batch})
+                callback.on('val_batch_end', batch=batch, logs={'batch': batch})
                 fake_summary_writer.add_scalars.assert_not_called()
 
             callback.on('epoch_end', epoch=1, logs={'epoch': 1})
@@ -135,9 +123,7 @@ def test_log_metrics_at_fixed_epoch_interval():
 
 
 def test_close_writer():
-    callback = TensorBoardLogger('./logs',
-                                 update_freq=5,
-                                 update_freq_unit='batch')
+    callback = TensorBoardLogger('./logs', update_freq=5, update_freq_unit='batch')
 
     with patch('torch.utils.tensorboard') as fake_tensorboard:
         fake_summary_writer = Mock(SummaryWriter)
