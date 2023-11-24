@@ -1,22 +1,24 @@
 # %%
 # %cd ..
-
 from __future__ import annotations
 
 import glob
+import os
+import string
+import unicodedata
+from typing import Sequence
+
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-import os
 import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pad_sequence
 from torch.optim import Adam
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset
 from torcheval.metrics import MulticlassAccuracy
-from training_loop import TrainingLoop, SimpleTrainingStep
-from typing import Dict, Sequence, Tuple
-import unicodedata
-import string
+from training_loop import SimpleTrainingStep
+from training_loop import TrainingLoop
 
 # NLP from scratch tutorial from Pytorch:
 # https://pytorch.org/tutorials/intermediate/char_rnn_classification_tutorial.html
@@ -28,8 +30,7 @@ if not os.path.isdir('data/names'):
     import zipfile
 
     data_url = 'https://download.pytorch.org/tutorial/data.zip'
-    print(
-        f'No data found. Downloading and extracting data from url: {data_url}')
+    print(f'No data found. Downloading and extracting data from url: {data_url}')
     urllib.request.urlretrieve(data_url, 'data/data.zip')
 
     with zipfile.ZipFile('data/data.zip') as file:
@@ -46,10 +47,12 @@ all_letters = string.ascii_letters + " .,;'"
 n_letters = len(all_letters)
 
 
-# Turn a Unicode string to plain ASCII, thanks to https://stackoverflow.com/a/518232/2809427
+# Turn a Unicode string to plain ASCII,
+# thanks to https://stackoverflow.com/a/518232/2809427
 def unicodeToAscii(s):
-    return ''.join(c for c in unicodedata.normalize('NFD', s)
-                   if unicodedata.category(c) != 'Mn' and c in all_letters)
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', s)
+        if unicodedata.category(c) != 'Mn' and c in all_letters)
 
 
 print(unicodeToAscii('Ślusàrski'))
@@ -61,7 +64,7 @@ all_categories = []
 
 # Read a file and split into lines
 def readLines(filename):
-    with open(filename, 'r', encoding='utf-8') as infile:
+    with open(filename, encoding='utf-8') as infile:
         lines = infile.read().strip().split('\n')
         return [unicodeToAscii(line) for line in lines]
 
@@ -113,12 +116,13 @@ print(lineToTensor('Jones').size())
 # %%
 class InternationalNamesDataset(Dataset):
 
-    def __init__(self, category_lines: Dict[str, Sequence[str]]) -> None:
+    def __init__(self, category_lines: dict[str, Sequence[str]]) -> None:
         super().__init__()
 
         categories = list(category_lines.keys())
         self.X = sum(
-            ([lineToTensor(line) for line in lines]
+            ([lineToTensor(line)
+              for line in lines]
              for lines in category_lines.values()),
             [],
         )
@@ -136,7 +140,7 @@ class InternationalNamesDataset(Dataset):
         return self.X[index], self.y[index]
 
 
-def split_train_validation(category_lines: Dict[str, Sequence[str]],
+def split_train_validation(category_lines: dict[str, Sequence[str]],
                            val_percentage: float = 0.2):
     train_category_lines, val_category_lines = {}, {}
 
@@ -155,8 +159,7 @@ print('Val item 0: ', val_ds[0], val_ds[0][0].shape)
 
 
 # %%
-def collate_lines_category_to_batch(samples: Sequence[Tuple[torch.Tensor,
-                                                            int]]):
+def collate_lines_category_to_batch(samples: Sequence[tuple[torch.Tensor, int]]):
     lines, labels = tuple(zip(*samples))
 
     # Pad all tensors to the same length.
@@ -196,7 +199,7 @@ for lines, labels in train_dl:
 class RNN(nn.Module):
 
     def __init__(self, input_size, hidden_size, output_size):
-        super(RNN, self).__init__()
+        super().__init__()
 
         self.hidden_size = hidden_size
 

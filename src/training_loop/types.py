@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from typing import Optional
+from typing import TypeVar
+from typing import Union
+
 import torch
 from torch import nn
-from typing import Optional, TypeVar, Union
 
 # Generics .
 TModel = TypeVar('TModel', bound=nn.Module)

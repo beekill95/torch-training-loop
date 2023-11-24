@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import logging
 from functools import wraps
 from itertools import chain
-import logging
+from typing import Generic
+
 import numpy as np
 import pandas as pd
 import torch
@@ -10,18 +12,16 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
-from typing import Dict, Generic, Tuple, List
 
-from .distributed_training_step import DistributedTrainingStep
-from .utils import (
-    TRAIN_DATALOADER_SEPARATOR,
-    train_dataloader_separator,
-    prefix_val_metrics_keys,
-    hasfunc,
-)
 from ..callbacks.callback import Callback
 from ..exceptions import StopTraining
-from ..types import TData, TDevice
+from ..types import TData
+from ..types import TDevice
+from .distributed_training_step import DistributedTrainingStep
+from .utils import hasfunc
+from .utils import prefix_val_metrics_keys
+from .utils import TRAIN_DATALOADER_SEPARATOR
+from .utils import train_dataloader_separator
 
 _LOGGER = logging.getLogger('DistributedTrainingLoop')
 _VAL_METRICS_PREFIX = 'val_'
@@ -50,8 +50,8 @@ class DistributedTrainingLoop(Generic[TData]):
     # and where stop training signal is broadcasted from.
     _MAIN_PROCESS = 0
 
-    def __init__(self, model: DDP, step: DistributedTrainingStep[TData], *,
-                 rank: int, device: TDevice) -> None:
+    def __init__(self, model: DDP, step: DistributedTrainingStep[TData], *, rank: int,
+                 device: TDevice) -> None:
         self._model = model
         self._step = step
         self._rank = rank
@@ -71,9 +71,9 @@ class DistributedTrainingLoop(Generic[TData]):
         val_dataloader: DataLoader,
         *,
         epochs: int,
-        callbacks: List[Callback[DDP]] | None = None,
+        callbacks: list[Callback[DDP]] | None = None,
         average_metrics_after_batch_end: bool = True,
-    ) -> Tuple[pd.DataFrame, pd.DataFrame] | None:
+    ) -> tuple[pd.DataFrame, pd.DataFrame] | None:
         """
         A skeleton for training and validating a distributed data parallel model on
         the corresponding train/val datasets. This function will handle
@@ -142,7 +142,7 @@ class DistributedTrainingLoop(Generic[TData]):
             if hasfunc(val_dataloader.sampler, 'set_epoch'):
                 val_dataloader.sampler.set_epoch(epoch)
 
-            ## Epoch Start.
+            # Epoch Start.
             self._handle(callbacks, 'epoch_begin', epoch=epoch)
             step.reset_train_metrics_distributed()
             step.reset_val_metrics_distributed()
@@ -153,10 +153,10 @@ class DistributedTrainingLoop(Generic[TData]):
                 enumerate(val_dataloader, start=1),
             )
 
-            with tqdm(total=total_batches,
-                      disable=not self._is_main_process) as progress_bar:
-                progress_bar.set_description(
-                    f'Epoch {epoch}/{epochs} - Training')
+            with tqdm(
+                    total=total_batches,
+                    disable=not self._is_main_process) as progress_bar:
+                progress_bar.set_description(f'Epoch {epoch}/{epochs} - Training')
 
                 is_training = True
                 for batch, data in dataloader:
@@ -167,23 +167,19 @@ class DistributedTrainingLoop(Generic[TData]):
                             f'Epoch {epoch}/{epochs} - Validating')
                         continue
 
-                    self._handle(callbacks,
-                                 'train_batch_begin'
-                                 if is_training else 'val_batch_begin',
-                                 batch=batch)
+                    self._handle(
+                        callbacks,
+                        'train_batch_begin' if is_training else 'val_batch_begin',
+                        batch=batch)
 
                     if is_training:
-                        logs = step.train_step_distributed(model=self._model,
-                                                           data=data,
-                                                           device=self._device)
+                        logs = step.train_step_distributed(
+                            model=self._model, data=data, device=self._device)
                     else:
                         with torch.no_grad():
                             logs = step.val_step_distributed(
-                                model=self._model,
-                                data=data,
-                                device=self._device)
-                            logs = prefix_val_metrics_keys(
-                                logs, _VAL_METRICS_PREFIX)
+                                model=self._model, data=data, device=self._device)
+                            logs = prefix_val_metrics_keys(logs, _VAL_METRICS_PREFIX)
 
                     self._handle(
                         callbacks,
@@ -212,13 +208,13 @@ class DistributedTrainingLoop(Generic[TData]):
                                 'val_epoch': epoch,
                             })
 
-                        ## Batch End.
+                        # Batch End.
 
                 # Gather training and validation logs when an epoch ends.
                 logs = {
                     **step.compute_train_metrics_synced(),
-                    **prefix_val_metrics_keys(
-                        step.compute_val_metrics_synced(), _VAL_METRICS_PREFIX),
+                    **prefix_val_metrics_keys(step.compute_val_metrics_synced(),
+                                              _VAL_METRICS_PREFIX),
                 }
 
                 stop_training = self._handle(
@@ -230,8 +226,7 @@ class DistributedTrainingLoop(Generic[TData]):
                 stop_training = self._broadcast_stop_training(stop_training)
 
                 # Update progress bar.
-                progress_bar.set_description(
-                    f'Epoch {epoch}/{epochs} - Finished')
+                progress_bar.set_description(f'Epoch {epoch}/{epochs} - Finished')
                 progress_bar.set_postfix(logs)
                 progress_bar.refresh()
 
@@ -240,7 +235,8 @@ class DistributedTrainingLoop(Generic[TData]):
                 train_history.append({
                     **{
                         k: v
-                        for k, v in logs.items() if not k.startswith(_VAL_METRICS_PREFIX)
+                        for k, v in logs.items()
+                        if not k.startswith(_VAL_METRICS_PREFIX)
                     },
                     'epoch': epoch,
                     'batch': -1,
@@ -248,7 +244,8 @@ class DistributedTrainingLoop(Generic[TData]):
                 val_history.append({
                     **{
                         k: v
-                        for k, v in logs.items() if k.startswith(_VAL_METRICS_PREFIX)
+                        for k, v in logs.items()
+                        if k.startswith(_VAL_METRICS_PREFIX)
                     },
                     'val_epoch': epoch,
                     'val_batch': -1,
@@ -261,7 +258,7 @@ class DistributedTrainingLoop(Generic[TData]):
                     'due to `StopTraining` raised.')
                 break
 
-            ## Epoch End.
+            # Epoch End.
 
         # Training End.
         self._handle(callbacks, 'training_end')
@@ -309,8 +306,7 @@ class DistributedTrainingLoop(Generic[TData]):
         dist.broadcast(signal, src=self._MAIN_PROCESS)
         return signal.cpu().item() == 1
 
-    def _sync_and_avg_metrics(self, metrics: Dict[str,
-                                                  float]) -> Dict[str, float]:
+    def _sync_and_avg_metrics(self, metrics: dict[str, float]) -> dict[str, float]:
         values = np.asarray(list(metrics.values())) / dist.get_world_size()
         values = torch.tensor(values, device=self._device)
 

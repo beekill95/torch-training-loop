@@ -1,10 +1,11 @@
-from importlib.metadata import version, PackageNotFoundError
+from __future__ import annotations
 
-from .training_loops import (
-    SimpleTrainingStep,
-    TrainingLoop,
-    TrainingStep,
-)
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version
+
+from .training_loops import SimpleTrainingStep
+from .training_loops import TrainingLoop
+from .training_loops import TrainingStep
 
 try:
     __version__ = version('torch_training_loop')

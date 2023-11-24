@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+from typing import Any
+from unittest.mock import call
+from unittest.mock import DEFAULT
+from unittest.mock import MagicMock
+
 import pandas as pd
 import pytest
 from torch import nn
 from torch.utils.data import DataLoader
-from training_loop import TrainingLoop, TrainingStep
+from training_loop import TrainingLoop
+from training_loop import TrainingStep
 from training_loop.callbacks import Callback
 from training_loop.exceptions import StopTraining
 from training_loop.types import TDevice
-from typing import Any
-from unittest.mock import DEFAULT, MagicMock, call
 
 from .utils import assert_dataframes_equal
 
@@ -282,27 +286,24 @@ class TestTrainingLoopFit:
         assert fake_callback.on_val_batch_end.call_count == 9
 
         assert fake_callback.on_epoch_end.call_args_list == [
-            call(epoch=1,
-                 logs={
-                     'f1': 0.8,
-                     'epoch': 1,
-                     'val_f1': 0.6,
-                     'val_epoch': 1
-                 }),
-            call(epoch=2,
-                 logs={
-                     'f1': 0.8,
-                     'epoch': 1,
-                     'val_f1': 0.6,
-                     'val_epoch': 1
-                 }),
-            call(epoch=3,
-                 logs={
-                     'f1': 0.8,
-                     'epoch': 1,
-                     'val_f1': 0.6,
-                     'val_epoch': 1
-                 }),
+            call(epoch=1, logs={
+                'f1': 0.8,
+                'epoch': 1,
+                'val_f1': 0.6,
+                'val_epoch': 1
+            }),
+            call(epoch=2, logs={
+                'f1': 0.8,
+                'epoch': 1,
+                'val_f1': 0.6,
+                'val_epoch': 1
+            }),
+            call(epoch=3, logs={
+                'f1': 0.8,
+                'epoch': 1,
+                'val_f1': 0.6,
+                'val_epoch': 1
+            }),
         ]
 
         fake_callback.on_training_end.assert_called_once()
@@ -418,13 +419,12 @@ class TestTrainingLoopFit:
         assert fake_callback.on_val_batch_end.call_count == 3
 
         assert fake_callback.on_epoch_end.call_args_list == [
-            call(epoch=1,
-                 logs={
-                     'f1': 0.8,
-                     'epoch': 1,
-                     'val_f1': 0.6,
-                     'val_epoch': 1
-                 }),
+            call(epoch=1, logs={
+                'f1': 0.8,
+                'epoch': 1,
+                'val_f1': 0.6,
+                'val_epoch': 1
+            }),
         ]
 
         fake_callback.on_training_end.assert_called_once()
@@ -474,8 +474,7 @@ class TestTrainingLoopFitCallsOrder:
         loop = TrainingLoop(fake_model, step)
 
         step.init.side_effect = self._record_call('init', call_orders)
-        step.train_step.side_effect = self._record_call(
-            'train_step', call_orders)
+        step.train_step.side_effect = self._record_call('train_step', call_orders)
         step.train_step.return_value = {'f1': 0.8}
         step.val_step.side_effect = self._record_call('val_step', call_orders)
         step.val_step.return_value = {'f1': 0.7}
@@ -509,10 +508,7 @@ class TestTrainingLoopFitCallsOrder:
             ('train1', 'train2', 'train3', 'train4'))
         val_dataloader = self.create_fake_dataloader(('val1', 'val2', 'val3'))
 
-        loop.fit(train_dataloader,
-                 val_dataloader,
-                 epochs=1,
-                 callbacks=[callback])
+        loop.fit(train_dataloader, val_dataloader, epochs=1, callbacks=[callback])
 
         methods = [name for name, _ in call_orders]
         assert methods == [
@@ -557,8 +553,7 @@ class TestTrainingLoopFitCallsOrder:
 
         class ResetDataCallback(Callback):
 
-            def __init__(self, train_dataloader, val_dataloader, train_data,
-                         val_data):
+            def __init__(self, train_dataloader, val_dataloader, train_data, val_data):
                 super().__init__()
 
                 self.train_dataloader = train_dataloader

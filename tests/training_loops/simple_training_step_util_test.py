@@ -1,19 +1,20 @@
 from __future__ import annotations
 
+from unittest.mock import call
+from unittest.mock import MagicMock
+from unittest.mock import patch
+
 import numpy as np
 import pytest
 import torch
 from torcheval.metrics import Metric
-from training_loop.training_loops.simple_training_step import (
-    calc_loss,
-    clone_metrics,
-    compute_metrics,
-    move_metrics_to_device,
-    transfer_data,
-    reset_metrics,
-    update_metrics,
-)
-from unittest.mock import MagicMock, call, patch
+from training_loop.training_loops.simple_training_step import calc_loss
+from training_loop.training_loops.simple_training_step import clone_metrics
+from training_loop.training_loops.simple_training_step import compute_metrics
+from training_loop.training_loops.simple_training_step import move_metrics_to_device
+from training_loop.training_loops.simple_training_step import reset_metrics
+from training_loop.training_loops.simple_training_step import transfer_data
+from training_loop.training_loops.simple_training_step import update_metrics
 
 
 class TestTransferData:
@@ -118,9 +119,8 @@ class TestMetricsUtilities:
     # Test _clone_metrics()
     def test_clone_single_metric(self):
         metric = ('fake', self.create_fake_metric())
-        with patch(
-                'training_loop.training_loops.simple_training_step.clone_metric'
-        ) as clone_metric:
+        with patch('training_loop.training_loops.simple_training_step.clone_metric'
+                  ) as clone_metric:
             clone_metric.return_value = metric[1]
             results = clone_metrics(metric)
             clone_metric.assert_called_once_with(metric[1])
@@ -134,9 +134,8 @@ class TestMetricsUtilities:
             ('fake3', self.create_fake_metric()),
         ]
 
-        with patch(
-                'training_loop.training_loops.simple_training_step.clone_metric'
-        ) as clone_metric:
+        with patch('training_loop.training_loops.simple_training_step.clone_metric'
+                  ) as clone_metric:
             clone_metric.side_effect = lambda x: x
 
             results = clone_metrics(metrics)
@@ -158,9 +157,8 @@ class TestMetricsUtilities:
             'fake2': ('fake2.1', self.create_fake_metric()),
         }
 
-        with patch(
-                'training_loop.training_loops.simple_training_step.clone_metric'
-        ) as clone_metric:
+        with patch('training_loop.training_loops.simple_training_step.clone_metric'
+                  ) as clone_metric:
             clone_metric.side_effect = lambda x: x
 
             results = clone_metrics(metrics)
@@ -205,24 +203,24 @@ class TestMetricsUtilities:
     # Test _update_metrics()
     def test_update_single_metric_multiple_outputs(self):
         metric = ('fake', self.create_fake_metric())
-        y_pred = [torch.ones((1, )) * 2, torch.ones((1, )) * 3]
-        y_true = [torch.ones((1, )) * 4, torch.ones((1, )) * 5]
+        y_pred = [torch.ones((1,)) * 2, torch.ones((1,)) * 3]
+        y_true = [torch.ones((1,)) * 4, torch.ones((1,)) * 5]
 
         with pytest.raises(AssertionError):
             update_metrics(metric, y_pred=y_pred, y_true=y_true)
 
     def test_update_single_metric_dict_outputs(self):
         metric = ('fake', self.create_fake_metric())
-        y_pred = {'out1': torch.ones((1, )) * 2, 'out2': torch.ones((1, )) * 3}
-        y_true = {'out1': torch.ones((1, )) * 4, 'out2': torch.ones((1, )) * 5}
+        y_pred = {'out1': torch.ones((1,)) * 2, 'out2': torch.ones((1,)) * 3}
+        y_true = {'out1': torch.ones((1,)) * 4, 'out2': torch.ones((1,)) * 5}
 
         with pytest.raises(AssertionError):
             update_metrics(metric, y_pred=y_pred, y_true=y_true)
 
     def test_update_single_metric_single_output(self):
         metric = ('fake', self.create_fake_metric())
-        y_pred = torch.ones((1, )) * 2
-        y_true = torch.ones((1, )) * 3
+        y_pred = torch.ones((1,)) * 2
+        y_true = torch.ones((1,)) * 3
 
         update_metrics(metric, y_pred=y_pred, y_true=y_true)
         metric[1].update.assert_called_once_with(y_pred, y_true)
@@ -235,8 +233,8 @@ class TestMetricsUtilities:
             ('fake4', self.create_fake_metric()),
         ]
 
-        y_pred = torch.ones((1, )) * 2
-        y_true = torch.ones((1, )) * 3
+        y_pred = torch.ones((1,)) * 2
+        y_true = torch.ones((1,)) * 3
         update_metrics(metrics, y_pred=y_pred, y_true=y_true)
 
         for _, metric in metrics:
@@ -250,8 +248,8 @@ class TestMetricsUtilities:
             ('fake4', self.create_fake_metric()),
         ]
 
-        y_pred = [torch.ones((1, )) * 2, torch.ones((1, )) * 3]
-        y_true = [torch.ones((1, )) * 4, torch.ones((1, )) * 5]
+        y_pred = [torch.ones((1,)) * 2, torch.ones((1,)) * 3]
+        y_true = [torch.ones((1,)) * 4, torch.ones((1,)) * 5]
         with pytest.raises(AssertionError):
             update_metrics(metrics, y_pred=y_pred, y_true=y_true)
 
@@ -264,16 +262,16 @@ class TestMetricsUtilities:
         ]
 
         y_pred = [
-            torch.ones((1, )) * 2,
-            torch.ones((1, )) * 3,
-            torch.ones((1, )) * 4,
-            torch.ones((1, )) * 5
+            torch.ones((1,)) * 2,
+            torch.ones((1,)) * 3,
+            torch.ones((1,)) * 4,
+            torch.ones((1,)) * 5
         ]
         y_true = [
-            torch.ones((1, )) * 6,
-            torch.ones((1, )) * 7,
-            torch.ones((1, )) * 8,
-            torch.ones((1, )) * 9
+            torch.ones((1,)) * 6,
+            torch.ones((1,)) * 7,
+            torch.ones((1,)) * 8,
+            torch.ones((1,)) * 9
         ]
 
         update_metrics(metrics, y_pred=y_pred, y_true=y_true)
@@ -289,14 +287,14 @@ class TestMetricsUtilities:
         ]
 
         y_pred = (
-            torch.ones((1, )) * 2,
-            torch.ones((1, )) * 3,
-            torch.ones((1, )) * 4,
+            torch.ones((1,)) * 2,
+            torch.ones((1,)) * 3,
+            torch.ones((1,)) * 4,
         )
         y_true = (
-            torch.ones((1, )) * 5,
-            torch.ones((1, )) * 6,
-            torch.ones((1, )) * 7,
+            torch.ones((1,)) * 5,
+            torch.ones((1,)) * 6,
+            torch.ones((1,)) * 7,
         )
 
         update_metrics(metrics, y_pred=y_pred, y_true=y_true)
@@ -310,8 +308,8 @@ class TestMetricsUtilities:
                       ('fake1.2', self.create_fake_metric())],
             'fake2': ('fake2.1', self.create_fake_metric()),
         }
-        y_pred = torch.ones((1, )) * 2
-        y_true = torch.ones((1, )) * 3
+        y_pred = torch.ones((1,)) * 2
+        y_true = torch.ones((1,)) * 3
 
         with pytest.raises(AssertionError):
             update_metrics(metrics, y_pred=y_pred, y_true=y_true)
@@ -322,8 +320,8 @@ class TestMetricsUtilities:
                       ('fake1.2', self.create_fake_metric())],
             'fake2': ('fake2.1', self.create_fake_metric()),
         }
-        y_pred = [torch.ones((1, )) * 1, torch.ones((1, )) * 2]
-        y_true = [torch.ones((1, )) * 3, torch.ones((1, )) * 4]
+        y_pred = [torch.ones((1,)) * 1, torch.ones((1,)) * 2]
+        y_true = [torch.ones((1,)) * 3, torch.ones((1,)) * 4]
 
         with pytest.raises(AssertionError):
             update_metrics(metrics, y_pred=y_pred, y_true=y_true)
@@ -335,13 +333,10 @@ class TestMetricsUtilities:
             'fake2': ('fake2.1', self.create_fake_metric()),
         }
         y_pred = {
-            'fake1': torch.ones((1, )) * 1,
-            'fake2': torch.ones((1, )) * 2,
+            'fake1': torch.ones((1,)) * 1,
+            'fake2': torch.ones((1,)) * 2,
         }
-        y_true = {
-            'fake1': torch.ones((1, )) * 3,
-            'fake2': torch.ones((1, )) * 4
-        }
+        y_true = {'fake1': torch.ones((1,)) * 3, 'fake2': torch.ones((1,)) * 4}
 
         update_metrics(metrics, y_pred=y_pred, y_true=y_true)
 
@@ -349,11 +344,10 @@ class TestMetricsUtilities:
             y_pred['fake1'], y_true['fake1'])
         metrics['fake1'][1][1].update.assert_called_once_with(
             y_pred['fake1'], y_true['fake1'])
-        metrics['fake2'][1].update.assert_called_once_with(
-            y_pred['fake2'], y_true['fake2'])
+        metrics['fake2'][1].update.assert_called_once_with(y_pred['fake2'],
+                                                           y_true['fake2'])
 
-    def test_update_dict_metrics_dict_of_sequence_outputs_different_length(
-            self):
+    def test_update_dict_metrics_dict_of_sequence_outputs_different_length(self):
         metrics = {
             'fake1': [('fake1.1', self.create_fake_metric()),
                       ('fake1.2', self.create_fake_metric())],
@@ -361,21 +355,19 @@ class TestMetricsUtilities:
         }
         y_pred = {
             'fake1': [
-                torch.ones((1, )) * 1,
-                torch.ones((1, )) * 1.3,
-                torch.ones((1, )) * 1.7,
+                torch.ones((1,)) * 1,
+                torch.ones((1,)) * 1.3,
+                torch.ones((1,)) * 1.7,
             ],
-            'fake2':
-            torch.ones((1, )) * 2,
+            'fake2': torch.ones((1,)) * 2,
         }
         y_true = {
             'fake1': [
-                torch.ones((1, )) * 3,
-                torch.ones((1, )) * 3.3,
-                torch.ones((1, )) * 3.7,
+                torch.ones((1,)) * 3,
+                torch.ones((1,)) * 3.3,
+                torch.ones((1,)) * 3.7,
             ],
-            'fake2':
-            torch.ones((1, )) * 4
+            'fake2': torch.ones((1,)) * 4
         }
 
         with pytest.raises(AssertionError):
@@ -389,17 +381,17 @@ class TestMetricsUtilities:
         }
         y_pred = {
             'fake1': [
-                torch.ones((1, )) * 1,
-                torch.ones((1, )) * 1.3,
+                torch.ones((1,)) * 1,
+                torch.ones((1,)) * 1.3,
             ],
-            'fake2': torch.ones((1, )) * 2,
+            'fake2': torch.ones((1,)) * 2,
         }
         y_true = {
             'fake1': [
-                torch.ones((1, )) * 3,
-                torch.ones((1, )) * 3.3,
+                torch.ones((1,)) * 3,
+                torch.ones((1,)) * 3.3,
             ],
-            'fake2': torch.ones((1, )) * 4
+            'fake2': torch.ones((1,)) * 4
         }
 
         update_metrics(metrics, y_pred=y_pred, y_true=y_true)
@@ -408,13 +400,13 @@ class TestMetricsUtilities:
             y_pred['fake1'][0], y_true['fake1'][0])
         metrics['fake1'][1][1].update.assert_called_once_with(
             y_pred['fake1'][1], y_true['fake1'][1])
-        metrics['fake2'][1].update.assert_called_once_with(
-            y_pred['fake2'], y_true['fake2'])
+        metrics['fake2'][1].update.assert_called_once_with(y_pred['fake2'],
+                                                           y_true['fake2'])
 
     # Test _compute_metrics()
     def test_compute_single_metric(self):
         metric = ('fake', self.create_fake_metric())
-        metric[1].compute.return_value = torch.ones((1, )) * 0.58
+        metric[1].compute.return_value = torch.ones((1,)) * 0.58
         results = compute_metrics(metric)
 
         assert pytest.approx(results) == {'fake': 0.58}
@@ -426,10 +418,10 @@ class TestMetricsUtilities:
             ('fake3', self.create_fake_metric()),
             ('fake4', self.create_fake_metric()),
         ]
-        metrics[0][1].compute.return_value = torch.ones((1, )) * 0.1
-        metrics[1][1].compute.return_value = torch.ones((1, )) * 0.2
-        metrics[2][1].compute.return_value = torch.ones((1, )) * 0.3
-        metrics[3][1].compute.return_value = torch.ones((1, )) * 0.4
+        metrics[0][1].compute.return_value = torch.ones((1,)) * 0.1
+        metrics[1][1].compute.return_value = torch.ones((1,)) * 0.2
+        metrics[2][1].compute.return_value = torch.ones((1,)) * 0.3
+        metrics[3][1].compute.return_value = torch.ones((1,)) * 0.4
 
         results = compute_metrics(metrics)
         assert pytest.approx(results) == {
@@ -446,9 +438,9 @@ class TestMetricsUtilities:
             'fake2': ('fake2.1', self.create_fake_metric()),
         }
 
-        metrics['fake1'][0][1].compute.return_value = torch.ones((1, )) * 0.1
-        metrics['fake1'][1][1].compute.return_value = torch.ones((1, )) * 0.2
-        metrics['fake2'][1].compute.return_value = torch.ones((1, )) * 0.3
+        metrics['fake1'][0][1].compute.return_value = torch.ones((1,)) * 0.1
+        metrics['fake1'][1][1].compute.return_value = torch.ones((1,)) * 0.2
+        metrics['fake2'][1].compute.return_value = torch.ones((1,)) * 0.3
 
         results = compute_metrics(metrics)
         assert pytest.approx(results) == {
@@ -472,11 +464,12 @@ class TestCalculatingLoss:
         y_pred = torch.tensor(np.asarray([[1.], [2.]]))
         y_true = torch.tensor(np.asarray([[3.], [5.]]))
 
-        loss = calc_loss(loss_fn,
-                         y_pred=y_pred,
-                         y_true=y_true,
-                         loss_weights=None,
-                         sample_weights=None)
+        loss = calc_loss(
+            loss_fn,
+            y_pred=y_pred,
+            y_true=y_true,
+            loss_weights=None,
+            sample_weights=None)
 
         loss_fn.assert_called_once_with(y_pred, y_true)
         assert loss.item() == pytest.approx(2.5)
@@ -488,11 +481,12 @@ class TestCalculatingLoss:
         y_true = torch.tensor(np.asarray([[3.], [5.]]))
         sample_weights = torch.tensor(np.asarray([1., 3.]))
 
-        loss = calc_loss(loss_fn,
-                         y_pred=y_pred,
-                         y_true=y_true,
-                         loss_weights=None,
-                         sample_weights=sample_weights)
+        loss = calc_loss(
+            loss_fn,
+            y_pred=y_pred,
+            y_true=y_true,
+            loss_weights=None,
+            sample_weights=sample_weights)
 
         loss_fn.assert_called_once_with(y_pred, y_true)
         assert loss.item() == pytest.approx(5.5)
@@ -506,11 +500,12 @@ class TestCalculatingLoss:
         y_pred = torch.tensor(np.asarray([[1., 2.], [1., 1.]]))
         y_true = torch.tensor(np.asarray([[5., 5.], [1., 1.]]))
 
-        loss = calc_loss(loss_functions,
-                         y_pred=y_pred,
-                         y_true=y_true,
-                         sample_weights=None,
-                         loss_weights=None)
+        loss = calc_loss(
+            loss_functions,
+            y_pred=y_pred,
+            y_true=y_true,
+            sample_weights=None,
+            loss_weights=None)
 
         for loss_fn in loss_functions:
             loss_fn.assert_called_once_with(y_pred, y_true)
@@ -529,11 +524,12 @@ class TestCalculatingLoss:
         y_true = torch.tensor(np.asarray([[5., 5.], [1., 2.]]))
         sample_weights = torch.tensor(np.asarray([1., 3.]))
 
-        loss = calc_loss(loss_functions,
-                         y_pred=y_pred,
-                         y_true=y_true,
-                         sample_weights=sample_weights,
-                         loss_weights=None)
+        loss = calc_loss(
+            loss_functions,
+            y_pred=y_pred,
+            y_true=y_true,
+            sample_weights=sample_weights,
+            loss_weights=None)
 
         for loss_fn in loss_functions:
             loss_fn.assert_called_once_with(y_pred, y_true)
@@ -554,11 +550,12 @@ class TestCalculatingLoss:
         sample_weights = torch.tensor(np.asarray([1., 3.]))
         loss_weights = [2., 5.]
 
-        loss = calc_loss(loss_functions,
-                         y_pred=y_pred,
-                         y_true=y_true,
-                         sample_weights=sample_weights,
-                         loss_weights=loss_weights)
+        loss = calc_loss(
+            loss_functions,
+            y_pred=y_pred,
+            y_true=y_true,
+            sample_weights=sample_weights,
+            loss_weights=loss_weights)
 
         for loss_fn in loss_functions:
             loss_fn.assert_called_once_with(y_pred, y_true)
@@ -586,11 +583,12 @@ class TestCalculatingLoss:
         )
 
         with pytest.raises(AssertionError):
-            calc_loss(loss_functions,
-                      y_pred=y_pred,
-                      y_true=y_true,
-                      sample_weights=None,
-                      loss_weights=None)
+            calc_loss(
+                loss_functions,
+                y_pred=y_pred,
+                y_true=y_true,
+                sample_weights=None,
+                loss_weights=None)
 
     def test_calc_list_losses_with_multiple_outputs(self):
         loss_functions = [
@@ -612,11 +610,12 @@ class TestCalculatingLoss:
         )
         loss_weights = [2., 5.]
 
-        loss = calc_loss(loss_functions,
-                         y_pred=y_pred,
-                         y_true=y_true,
-                         sample_weights=sample_weights,
-                         loss_weights=loss_weights)
+        loss = calc_loss(
+            loss_functions,
+            y_pred=y_pred,
+            y_true=y_true,
+            sample_weights=sample_weights,
+            loss_weights=loss_weights)
 
         l1_loss_mean = (4. + 3. + 0. + 3.) / 4
         l2_loss_mean = (4. + 4. + 0. + 18.) / 4
@@ -633,11 +632,12 @@ class TestCalculatingLoss:
         y_true = torch.tensor(np.asarray([[5., 5.], [1., 2.]]))
 
         with pytest.raises(AssertionError):
-            calc_loss(loss_functions,
-                      y_pred=y_pred,
-                      y_true=y_true,
-                      sample_weights=None,
-                      loss_weights=None)
+            calc_loss(
+                loss_functions,
+                y_pred=y_pred,
+                y_true=y_true,
+                sample_weights=None,
+                loss_weights=None)
 
     def test_calc_dict_losses_with_dict_outputs(self):
         loss_functions = dict(
@@ -659,11 +659,12 @@ class TestCalculatingLoss:
         }
         loss_weights = {'l1': 2., 'l2': 5.}
 
-        loss = calc_loss(loss_functions,
-                         y_pred=y_pred,
-                         y_true=y_true,
-                         sample_weights=sample_weights,
-                         loss_weights=loss_weights)
+        loss = calc_loss(
+            loss_functions,
+            y_pred=y_pred,
+            y_true=y_true,
+            sample_weights=sample_weights,
+            loss_weights=loss_weights)
 
         l1_loss_mean = (4. + 3. + 0. + 3.) / 4
         l2_loss_mean = (4. + 4. + 0. + 18.) / 4

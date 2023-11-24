@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from unittest.mock import call
+from unittest.mock import MagicMock
+from unittest.mock import patch
+
 import numpy as np
 import torch
-from torch import nn, optim
+from torch import nn
+from torch import optim
 from torcheval.metrics import Metric
 from training_loop.training_loops.simple_training_step import SimpleTrainingStep
-from unittest.mock import MagicMock, call, patch
 
 
 class TrainingStepInstances:
@@ -34,8 +38,7 @@ class TrainingStepInstances:
         )
 
 
-@patch(
-    'training_loop.training_loops.simple_training_step.move_metrics_to_device')
+@patch('training_loop.training_loops.simple_training_step.move_metrics_to_device')
 @patch('training_loop.training_loops.simple_training_step.clone_metrics')
 def test_loop_init(clone_metrics, move_metrics):
     instances = TrainingStepInstances()
@@ -74,9 +77,7 @@ class TestTraining:
     )
 
     @patch('training_loop.training_loops.simple_training_step.Mean')
-    @patch(
-        'training_loop.training_loops.simple_training_step.move_metrics_to_device'
-    )
+    @patch('training_loop.training_loops.simple_training_step.move_metrics_to_device')
     @patch('training_loop.training_loops.simple_training_step.compute_metrics')
     @patch('training_loop.training_loops.simple_training_step.update_metrics')
     @patch('training_loop.training_loops.simple_training_step.calc_loss')
@@ -96,11 +97,11 @@ class TestTraining:
         instances.model.return_value = y_pred
 
         loss = MagicMock(torch.Tensor)
-        loss.detach.return_value.cpu.return_value.item.return_value = 7.0
+        loss.detach().cpu().item.return_value = 7.0
         calc_loss.return_value = loss
 
         metric_mean.return_value = metric_mean
-        metric_mean.compute.return_value.detach.return_value.cpu.return_value.item.return_value = 7.0
+        metric_mean.compute().detach().cpu().item.return_value = 7.0
 
         compute_metrics.return_value = {'f1': 0.2}
 
@@ -111,8 +112,7 @@ class TestTraining:
         step = instances.create_step()
         step.init(instances.model, instances.device)
 
-        logs = step.train_step(instances.model, self.train_data,
-                               instances.device)
+        logs = step.train_step(instances.model, self.train_data, instances.device)
 
         # Switch model to train mode.
         instances.model.train.assert_called_once()
@@ -163,9 +163,7 @@ class TestValidation:
     val_metrics = MagicMock(Metric)
 
     @patch('training_loop.training_loops.simple_training_step.Mean')
-    @patch(
-        'training_loop.training_loops.simple_training_step.move_metrics_to_device'
-    )
+    @patch('training_loop.training_loops.simple_training_step.move_metrics_to_device')
     @patch('training_loop.training_loops.simple_training_step.compute_metrics')
     @patch('training_loop.training_loops.simple_training_step.update_metrics')
     @patch('training_loop.training_loops.simple_training_step.calc_loss')
@@ -187,11 +185,11 @@ class TestValidation:
         instances.model.return_value = y_pred
 
         loss = MagicMock(torch.Tensor)
-        loss.detach.return_value.cpu.return_value.item.return_value = 7.0
+        loss.detach().cpu().item.return_value = 7.0
         calc_loss.return_value = loss
 
         metric_mean.return_value = metric_mean
-        metric_mean.compute.return_value.detach.return_value.cpu.return_value.item.return_value = 7.0
+        metric_mean.compute().detach().cpu().item.return_value = 7.0
 
         compute_metrics.return_value = {'f1': 0.2}
 

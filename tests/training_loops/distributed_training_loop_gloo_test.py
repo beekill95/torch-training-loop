@@ -1,22 +1,25 @@
 from __future__ import annotations
 
+import os
+import socket
+import time
 from collections.abc import Callable
 from contextlib import contextmanager
 from functools import wraps
-import os
+from unittest.mock import call
+from unittest.mock import DEFAULT
+from unittest.mock import MagicMock
+
 import pandas as pd
 import pytest
-import socket
-import time
 import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch.multiprocessing.spawn import ProcessContext
-from torch.utils.data import DataLoader
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.data import DataLoader
 from training_loop.callbacks import Callback
-from training_loop.distributed import DistributedTrainingLoop, DistributedTrainingStep
-from unittest.mock import MagicMock, call, DEFAULT
-
+from training_loop.distributed import DistributedTrainingLoop
+from training_loop.distributed import DistributedTrainingStep
 from training_loop.exceptions import StopTraining
 
 from .utils import assert_dataframes_equal
@@ -49,7 +52,7 @@ def wait_processes_finished(number_waits: int | None = None):
         def processes_waited(*args, **kwargs):
             context = test_func(*args, **kwargs)
             assert isinstance(context, ProcessContext), \
-                    'Test function should return `ProcessContext`'
+                'Test function should return `ProcessContext`'
 
             for _ in range(number_waits):
                 if context.join(processes_wait_time):
@@ -251,21 +254,15 @@ class TestDistributedTrainingLoop:
 
         return dataloader
 
-    def _test_fit_method_made_calls_with_correct_arguments(
-            self, rank, port, world_size, backend):
+    def _test_fit_method_made_calls_with_correct_arguments(self, rank, port, world_size,
+                                                           backend):
         with setup_backend(backend, world_size, port, rank):
             step = MagicMock(DistributedTrainingStep)
             step.train_step_distributed.side_effect = self.train_step_return_values
             step.val_step_distributed.side_effect = self.val_step_return_values
 
-            step.compute_train_metrics_synced.return_value = {
-                'f1': 0.8,
-                'epoch': 1
-            }
-            step.compute_val_metrics_synced.return_value = {
-                'f1': 0.6,
-                'epoch': 1
-            }
+            step.compute_train_metrics_synced.return_value = {'f1': 0.8, 'epoch': 1}
+            step.compute_val_metrics_synced.return_value = {'f1': 0.6, 'epoch': 1}
 
             model = MagicMock(DDP)
             loop = DistributedTrainingLoop(
@@ -412,8 +409,8 @@ class TestDistributedTrainingLoop:
                 callback.on_training_end.assert_not_called()
 
     @wait_processes_finished()
-    def test_fit_method_made_calls_with_correct_arguments(
-            self, backend, world_size, master_port):
+    def test_fit_method_made_calls_with_correct_arguments(self, backend, world_size,
+                                                          master_port):
         context = mp.spawn(
             self._test_fit_method_made_calls_with_correct_arguments,
             args=(master_port, world_size, backend),
@@ -429,14 +426,8 @@ class TestDistributedTrainingLoop:
             step.train_step_distributed.side_effect = self.train_step_return_values
             step.val_step_distributed.side_effect = self.val_step_return_values
 
-            step.compute_train_metrics_synced.return_value = {
-                'f1': 0.8,
-                'epoch': 1
-            }
-            step.compute_val_metrics_synced.return_value = {
-                'f1': 0.6,
-                'epoch': 1
-            }
+            step.compute_train_metrics_synced.return_value = {'f1': 0.8, 'epoch': 1}
+            step.compute_val_metrics_synced.return_value = {'f1': 0.6, 'epoch': 1}
 
             model = MagicMock(DDP)
             loop = DistributedTrainingLoop(
@@ -543,10 +534,8 @@ class TestCallsOrder:
         callback.on_training_end.side_effect = self.record_call(
             'on_training_end', calls)
 
-        callback.on_epoch_begin.side_effect = self.record_call(
-            'on_epoch_begin', calls)
-        callback.on_epoch_end.side_effect = self.record_call(
-            'on_epoch_end', calls)
+        callback.on_epoch_begin.side_effect = self.record_call('on_epoch_begin', calls)
+        callback.on_epoch_end.side_effect = self.record_call('on_epoch_end', calls)
 
         callback.on_train_batch_begin.side_effect = self.record_call(
             'on_train_batch_begin', calls)
@@ -562,8 +551,7 @@ class TestCallsOrder:
     def create_recorded_step(self, calls: list):
         step = MagicMock(DistributedTrainingStep)
 
-        step.init_distributed.side_effect = self.record_call(
-            'init_distributed', calls)
+        step.init_distributed.side_effect = self.record_call('init_distributed', calls)
         step.train_step_distributed.side_effect = self.record_call(
             'train_step_distributed', calls)
         step.train_step_distributed.return_value = {'f1': 0.8}
@@ -866,8 +854,7 @@ class TestCallsOrder:
         )
         return context
 
-    def _test_three_epochs_with_early_stopping(self, rank, port, world_size,
-                                               backend):
+    def _test_three_epochs_with_early_stopping(self, rank, port, world_size, backend):
 
         class EarlyStoppingAtSecondEpochEnd(Callback):
 
@@ -892,11 +879,11 @@ class TestCallsOrder:
                 ('train1', 'train2', 'train3', 'train4'))
             val_loader = self.create_dataloader(('val1', 'val2', 'val3'))
 
-            loop.fit(train_loader,
-                     val_loader,
-                     epochs=3,
-                     callbacks=[callback,
-                                EarlyStoppingAtSecondEpochEnd()])
+            loop.fit(
+                train_loader,
+                val_loader,
+                epochs=3,
+                callbacks=[callback, EarlyStoppingAtSecondEpochEnd()])
 
             method_names = [name for name, _ in calls]
             if rank == loop._MAIN_PROCESS:
@@ -1006,8 +993,7 @@ class TestCallsOrder:
                 ]
 
     @wait_processes_finished()
-    def test_three_epochs_with_early_stopping(self, world_size, backend,
-                                              master_port):
+    def test_three_epochs_with_early_stopping(self, world_size, backend, master_port):
         context = mp.spawn(
             self._test_three_epochs_with_early_stopping,
             args=(master_port, world_size, backend),

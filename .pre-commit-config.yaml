@@ -6,7 +6,26 @@ repos:
     hooks:
     -   id: trailing-whitespace
     -   id: end-of-file-fixer
+    -   id: check-toml
     -   id: check-yaml
     -   id: check-added-large-files
     -   id: name-tests-test
         exclude: tests/training_loops/utils.py
+-   repo: https://github.com/asottile/reorder-python-imports
+    rev: v3.12.0
+    hooks:
+    -   id: reorder-python-imports
+        args: [--py38-plus, --add-import, 'from __future__ import annotations']
+-   repo: https://github.com/asottile/pyupgrade
+    rev: v3.15.0
+    hooks:
+    -   id: pyupgrade
+        args: [--py38-plus]
+-   repo: https://github.com/google/yapf
+    rev: v0.40.2
+    hooks:
+    -   id: yapf
+-   repo: https://github.com/PyCQA/flake8
+    rev: 6.1.0
+    hooks:
+    -   id: flake8

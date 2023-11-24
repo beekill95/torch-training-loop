@@ -3,18 +3,19 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.optim import SGD
-from torcheval.metrics import MulticlassAccuracy
 import torchvision
 import torchvision.transforms as transforms
-from training_loop import TrainingLoop, SimpleTrainingStep
+from torch.optim import SGD
+from torcheval.metrics import MulticlassAccuracy
+from training_loop import SimpleTrainingStep
+from training_loop import TrainingLoop
 
 # Tutorial from Pytorch:
 # https://pytorch.org/tutorials/beginner/introyt/trainingyt.html#the-training-loop
 
 transform = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize((0.5, ), (0.5, )),
+    transforms.Normalize((0.5,), (0.5,)),
 ])
 
 # Create datasets for training & validation, download if necessary
@@ -58,8 +59,8 @@ classes = (
 )
 
 # Report split sizes
-print('Training set has {} instances'.format(len(training_set)))
-print('Validation set has {} instances'.format(len(validation_set)))
+print(f'Training set has {len(training_set)} instances')
+print(f'Validation set has {len(validation_set)} instances')
 
 
 # Model.

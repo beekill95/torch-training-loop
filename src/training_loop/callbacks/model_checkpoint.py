@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-import numpy as np
 from pathlib import Path
+from typing import Callable
+from typing import Literal
+
+import numpy as np
 import torch
 from torch import nn
-from typing import Callable, Literal
 
 from .callback import Callback
 
@@ -61,8 +63,7 @@ class ModelCheckpoint(Callback[nn.Module]):
             self._save_model(epoch, logs)
         else:
             if self._monitor not in logs:
-                raise ValueError(
-                    f'Metric {self._monitor} doesnt exist in logs.')
+                raise ValueError(f'Metric {self._monitor} doesnt exist in logs.')
 
             value = logs[self._monitor]
             if self._is_better_than_best_value(value):
