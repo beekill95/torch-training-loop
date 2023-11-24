@@ -11,10 +11,10 @@ import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
-from tqdm.auto import tqdm
 
 from ..callbacks.callback import Callback
 from ..exceptions import StopTraining
+from ..progress_reporter import ProgressReporter
 from ..types import TData
 from ..types import TDevice
 from .distributed_training_step import DistributedTrainingStep
@@ -73,6 +73,7 @@ class DistributedTrainingLoop(Generic[TData]):
         epochs: int,
         callbacks: list[Callback[DDP]] | None = None,
         average_metrics_after_batch_end: bool = True,
+        verbose: int = 1,
     ) -> tuple[pd.DataFrame, pd.DataFrame] | None:
         """
         A skeleton for training and validating a distributed data parallel model on
@@ -105,6 +106,16 @@ class DistributedTrainingLoop(Generic[TData]):
                 Whether to average metrics across processes before displaying in the
                 progress bar. Set the flag to True will report more accurate metrics,
                 but it might come with performance hit. Default to True.
+            verbose: int
+                Verbose level for the main process (default to 1),
+                other processes verbose will always be 0.
+                If verbose < 1: no progress bar is displayed.
+                If verbose = 1: progress bar is displayed at each epoch.
+                If verbose = 2: no progress bar is displayed, but train and validation
+                    metrics are displayed after each epoch.
+                If verbose > 2: number of epochs between consecutive reports
+                    of train and validation metrics.
+
 
         Returns: (pd.DataFrame, pd.DataFrame) | None
             A tuple of pandas dataframes containing training and validation history
@@ -153,18 +164,18 @@ class DistributedTrainingLoop(Generic[TData]):
                 enumerate(val_dataloader, start=1),
             )
 
-            with tqdm(
-                    total=total_batches,
-                    disable=not self._is_main_process) as progress_bar:
-                progress_bar.set_description(f'Epoch {epoch}/{epochs} - Training')
-
+            with ProgressReporter(
+                    epoch,
+                    total_epochs=epochs,
+                    total_batches=total_batches,
+                    verbose=verbose if self._is_main_process else 0,
+            ) as reporter:
                 is_training = True
                 for batch, data in dataloader:
+                    reporter.next_batch()
+
                     if data is TRAIN_DATALOADER_SEPARATOR:
                         is_training = False
-
-                        progress_bar.set_description(
-                            f'Epoch {epoch}/{epochs} - Validating')
                         continue
 
                     self._handle(
@@ -190,8 +201,8 @@ class DistributedTrainingLoop(Generic[TData]):
                     if average_metrics_after_batch_end:
                         logs = self._sync_and_avg_metrics(logs)
 
-                    # Display progress.
-                    progress_bar.set_postfix(logs)
+                    reporter.report_batch_progress(
+                        'Training' if is_training else 'Validating', logs)
 
                     if self._is_main_process:
                         # Record progress history.
@@ -225,10 +236,7 @@ class DistributedTrainingLoop(Generic[TData]):
                 )
                 stop_training = self._broadcast_stop_training(stop_training)
 
-                # Update progress bar.
-                progress_bar.set_description(f'Epoch {epoch}/{epochs} - Finished')
-                progress_bar.set_postfix(logs)
-                progress_bar.refresh()
+                reporter.report_epoch_progress('Finished', logs)
 
             # Record history.
             if self._is_main_process:

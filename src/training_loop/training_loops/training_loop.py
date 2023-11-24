@@ -7,10 +7,10 @@ from typing import Generic
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
-from tqdm.auto import tqdm
 
 from ..callbacks import Callback
 from ..exceptions import StopTraining
+from ..progress_reporter import ProgressReporter
 from ..types import TData
 from ..types import TDevice
 from ..types import TModel
@@ -56,6 +56,7 @@ class TrainingLoop(Generic[TModel, TData]):
         *,
         epochs: int,
         callbacks: list[Callback[TModel]] | None = None,
+        verbose: int = 1,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         """
         A skeleton for training and validating a typical model on
@@ -79,6 +80,14 @@ class TrainingLoop(Generic[TModel, TData]):
                 Number of epochs to train the model.
             callbacks: a list of callbacks or None.
                 A list of callbacks to handle train/validation events, default is None.
+            verbose: int
+                Verbose level. Default to 1.
+                If verbose < 1: no progress bar is displayed.
+                If verbose = 1: progress bar is displayed at each epoch.
+                If verbose = 2: no progress bar is displayed, but train and validation
+                    metrics are displayed after each epoch.
+                If verbose > 2: number of epochs between consecutive reports
+                    of train and validation metrics.
 
         Returns: (pd.DataFrame, pd.DataFrame)
             A tuple of pandas dataframes containing training and validation history
@@ -115,19 +124,20 @@ class TrainingLoop(Generic[TModel, TData]):
             )
 
             # Display progress bar.
-            with tqdm(total=total_batches) as progress_bar:
-                progress_bar.set_description(f'Epoch {epoch}/{epochs} - Training')
-
+            with ProgressReporter(
+                    epoch,
+                    total_epochs=epochs,
+                    total_batches=total_batches,
+                    verbose=verbose,
+            ) as reporter:
                 is_training = True
                 for batch, data in dataloader:
                     # Batch Start.
-                    progress_bar.update()
+                    reporter.next_batch()
 
                     # Transition to validation.
                     if data is TRAIN_DATALOADER_SEPARATOR:
                         is_training = False
-                        progress_bar.set_description(
-                            f'Epoch {epoch}/{epochs} - Validating')
                         continue
 
                     self._handle(
@@ -149,7 +159,8 @@ class TrainingLoop(Generic[TModel, TData]):
                         logs=logs)
 
                     # Display progress.
-                    progress_bar.set_postfix(logs)
+                    reporter.report_batch_progress(
+                        'Training' if is_training else 'Validating', logs)
 
                     # Record progress history.
                     if is_training:
@@ -182,9 +193,7 @@ class TrainingLoop(Generic[TModel, TData]):
                 )
 
                 # Update progress bar.
-                progress_bar.set_description(f'Epoch {epoch}/{epochs} - Finished')
-                progress_bar.set_postfix(logs)
-                progress_bar.refresh()
+                reporter.report_epoch_progress('Finished', logs)
 
                 # Record history.
                 train_history.append({
