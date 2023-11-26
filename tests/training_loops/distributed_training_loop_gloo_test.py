@@ -9,6 +9,7 @@ from functools import wraps
 from unittest.mock import call
 from unittest.mock import DEFAULT
 from unittest.mock import MagicMock
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -244,6 +245,7 @@ class TestDistributedTrainingLoop:
         dataloader = MagicMock(DataLoader)
         dataloader.sampler = MagicMock()
         dataloader.__iter__.return_value = self.train_data
+        dataloader.__len__.return_value = len(self.train_data)
 
         return dataloader
 
@@ -251,6 +253,7 @@ class TestDistributedTrainingLoop:
         dataloader = MagicMock(DataLoader)
         dataloader.sampler = MagicMock()
         dataloader.__iter__.return_value = self.val_data
+        dataloader.__len__.return_value = len(self.val_data)
 
         return dataloader
 
@@ -508,6 +511,101 @@ class TestDistributedTrainingLoop:
         context = mp.spawn(
             self._test_fit_method_return_correct_histories,
             args=(master_port, world_size, backend),
+            nprocs=world_size,
+            join=False,
+        )
+        return context
+
+    def _test_progress_reporter(self, rank, port, world_size, backend, verbose):
+        with setup_backend(backend, world_size, port, rank):
+            step = MagicMock(DistributedTrainingStep)
+            step.train_step_distributed.side_effect = self.train_step_return_values
+            step.val_step_distributed.side_effect = self.val_step_return_values
+
+            step.compute_train_metrics_synced.return_value = {'f1': 0.8, 'epoch': 1}
+            step.compute_val_metrics_synced.return_value = {'f1': 0.6, 'epoch': 1}
+
+            model = MagicMock(DDP)
+            loop = DistributedTrainingLoop(
+                model,
+                step=step,
+                rank=rank,
+                device='cpu',
+            )
+            loop._sync_and_avg_metrics = MagicMock(side_effect=lambda x: x)
+            loop._broadcast_stop_training = MagicMock()
+
+            trainloader = self.create_train_dataloader()
+            valloader = self.create_val_dataloader()
+
+            with patch(
+                    'training_loop.training_loops.distributed_training_loop.ProgressReporter'  # noqa
+            ) as reporter:
+                reporter_ctx = MagicMock()
+                reporter.return_value.__enter__.return_value = reporter_ctx
+                loop.fit(trainloader, valloader, epochs=1, verbose=verbose)
+
+                if rank == loop._MAIN_PROCESS:
+                    reporter.assert_called_once_with(
+                        1,
+                        total_epochs=1,
+                        total_batches=7,
+                        verbose=verbose,
+                    )
+                else:
+                    reporter.assert_called_once_with(
+                        1,
+                        total_epochs=1,
+                        total_batches=7,
+                        verbose=0,
+                    )
+
+                assert reporter_ctx.next_batch.call_count == 7
+                reporter_ctx.report_batch_progress.assert_has_calls(
+                    [
+                        call('Training', {
+                            'f1': 0.5,
+                            'batch': 1,
+                        }),
+                        call('Training', {
+                            'f1': 0.6,
+                            'batch': 2,
+                        }),
+                        call('Training', {
+                            'f1': 0.7,
+                            'batch': 3,
+                        }),
+                        call('Validating', {
+                            'val_f1': 0.3,
+                            'val_batch': 1,
+                        }),
+                        call('Validating', {
+                            'val_f1': 0.4,
+                            'val_batch': 2,
+                        }),
+                        call('Validating', {
+                            'val_f1': 0.5,
+                            'val_batch': 3,
+                        }),
+                    ],
+                    any_order=False,
+                )
+                reporter_ctx.report_epoch_progress.assert_called_once_with(
+                    'Finished',
+                    {
+                        'f1': 0.8,
+                        'epoch': 1,
+                        'val_f1': 0.6,
+                        'val_epoch': 1,
+                    },
+                )
+
+    @wait_processes_finished()
+    @pytest.mark.parametrize('verbose', [0, 1, 2, 5])
+    def test_progress_reporter(self, world_size, backend, master_port, verbose):
+        context = mp.spawn(
+            self._test_progress_reporter,
+            args=(master_port, world_size, backend, verbose),
             nprocs=world_size,
             join=False,
         )
