@@ -71,11 +71,9 @@ class TrainingLoop(Generic[TModel, TData]):
 
         Parameters:
             train_dataloader: DataLoader
-                Dataloader for loading training dataset. It should implement `__len__()`
-                method in order to display the training progress.
+                Dataloader for loading training dataset.
             val_dataloader: DataLoader
-                Dataloader for loading validation dataset. It should implement
-                `__len__()` method in order to display the validation progress.
+                Dataloader for loading validation dataset.
             epochs: int
                 Number of epochs to train the model.
             callbacks: a list of callbacks or None.
@@ -109,7 +107,10 @@ class TrainingLoop(Generic[TModel, TData]):
         self._init_callbacks(callbacks)
         self._handle(callbacks, 'training_begin')
 
-        total_batches = len(train_dataloader) + len(val_dataloader) + 1
+        try:
+            total_batches = len(train_dataloader) + len(val_dataloader)
+        except TypeError:
+            total_batches = float('inf')
 
         for epoch in range(1, epochs + 1):
             # Epoch Start.
@@ -132,13 +133,13 @@ class TrainingLoop(Generic[TModel, TData]):
             ) as reporter:
                 is_training = True
                 for batch, data in dataloader:
-                    # Batch Start.
-                    reporter.next_batch()
-
                     # Transition to validation.
                     if data is TRAIN_DATALOADER_SEPARATOR:
                         is_training = False
                         continue
+
+                    # Batch Start.
+                    reporter.next_batch()
 
                     self._handle(
                         callbacks,

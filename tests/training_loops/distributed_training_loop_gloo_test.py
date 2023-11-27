@@ -549,18 +549,18 @@ class TestDistributedTrainingLoop:
                     reporter.assert_called_once_with(
                         1,
                         total_epochs=1,
-                        total_batches=7,
+                        total_batches=6,
                         verbose=verbose,
                     )
                 else:
                     reporter.assert_called_once_with(
                         1,
                         total_epochs=1,
-                        total_batches=7,
+                        total_batches=6,
                         verbose=0,
                     )
 
-                assert reporter_ctx.next_batch.call_count == 7
+                assert reporter_ctx.next_batch.call_count == 6
                 reporter_ctx.report_batch_progress.assert_has_calls(
                     [
                         call('Training', {
