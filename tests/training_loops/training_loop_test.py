@@ -4,6 +4,7 @@ from typing import Any
 from unittest.mock import call
 from unittest.mock import DEFAULT
 from unittest.mock import MagicMock
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -133,6 +134,7 @@ class TestTrainingLoopFit:
     def train_dataloader(self):
         dataloader = MagicMock(DataLoader)
         dataloader.__iter__.return_value = self.train_data
+        dataloader.__len__.return_value = len(self.train_data)
 
         return dataloader
 
@@ -140,6 +142,7 @@ class TestTrainingLoopFit:
     def val_dataloader(self):
         dataloader = MagicMock(DataLoader)
         dataloader.__iter__.return_value = self.val_data
+        dataloader.__len__.return_value = len(self.val_data)
 
         return dataloader
 
@@ -434,6 +437,67 @@ class TestTrainingLoopFit:
         assert step.reset_val_metrics.call_count == 1
         assert step.compute_train_metrics.call_count == 1
         assert step.compute_val_metrics.call_count == 1
+
+    @pytest.mark.parametrize('verbose', [0, 1, 2, 5, 10])
+    @patch('training_loop.training_loops.training_loop.ProgressReporter')
+    def test_progress_reporter(
+        self,
+        reporter,
+        train_dataloader,
+        val_dataloader,
+        loop,
+        verbose,
+    ):
+        reporter_ctx = MagicMock()
+        reporter.return_value.__enter__.return_value = reporter_ctx
+        loop.fit(train_dataloader, val_dataloader, epochs=1, verbose=verbose)
+
+        reporter.assert_called_once_with(
+            1,
+            total_epochs=1,
+            total_batches=7,
+            verbose=verbose,
+        )
+
+        assert reporter_ctx.next_batch.call_count == 7
+        reporter_ctx.report_batch_progress.assert_has_calls(
+            [
+                call('Training', {
+                    'f1': 0.5,
+                    'batch': 1,
+                }),
+                call('Training', {
+                    'f1': 0.6,
+                    'batch': 2,
+                }),
+                call('Training', {
+                    'f1': 0.7,
+                    'batch': 3,
+                }),
+                call('Validating', {
+                    'val_f1': 0.3,
+                    'val_batch': 1,
+                }),
+                call('Validating', {
+                    'val_f1': 0.4,
+                    'val_batch': 2,
+                }),
+                call('Validating', {
+                    'val_f1': 0.5,
+                    'val_batch': 3,
+                }),
+            ],
+            any_order=False,
+        )
+        reporter_ctx.report_epoch_progress.assert_called_once_with(
+            'Finished',
+            {
+                'f1': 0.8,
+                'epoch': 1,
+                'val_f1': 0.6,
+                'val_epoch': 1,
+            },
+        )
 
 
 class TestTrainingLoopFitCallsOrder:
