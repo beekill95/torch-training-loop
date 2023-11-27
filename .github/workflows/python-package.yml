@@ -48,7 +48,7 @@ jobs:
       # if: steps.cached-poetry.outputs.cache-hit != 'true'
       uses: snok/install-poetry@v1.3.4
       with:
-        version: 1.5.1
+        version: 1.7.1
         virtualenvs-create: true
         virtualenvs-in-project: true
     - name: Load cached venv
