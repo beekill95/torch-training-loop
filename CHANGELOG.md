@@ -6,6 +6,16 @@
 * Implement evaluation loop.
 * Support mixed-precision training.
 
+## [v0.1.2](https://github.com/beekill95/torch-training-loop/releases/tag/v0.1.2) - 2023-11-27
+
+### Changed
+
+* Support dataloaders without `__len__` implementation. ([#21](https://github.com/beekill95/torch-training-loop/pull/21))
+
+### Added
+
+* Different verbose levels for training loops' `fit()` function. ([#20](https://github.com/beekill95/torch-training-loop/pull/20))
+
 ## [v0.1.1](https://github.com/beekill95/torch-training-loop/releases/tag/v0.1.1) - 2023-11-11
 
 ### Added
