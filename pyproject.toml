@@ -21,7 +21,10 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.8"
-torch = { version = "*", source = "torch-cpu" }
+torch = [
+    { version = "*", source = "torch-cpu", platform = "linux" },
+    { version = "*", platform = "darwin || win32" },
+]
 torcheval = "*"
 pandas = "*"
 numpy = "*"
