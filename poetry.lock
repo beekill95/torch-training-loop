@@ -3311,40 +3311,6 @@ dynamo = ["jinja2"]
 opt-einsum = ["opt-einsum (>=3.3)"]
 
 [[package]]
-name = "torch"
-version = "2.1.1+cpu"
-description = "Tensors and Dynamic neural networks in Python with strong GPU acceleration"
-optional = false
-python-versions = ">=3.8.0"
-files = [
-    {file = "torch-2.1.1+cpu-cp310-cp310-linux_x86_64.whl", hash = "sha256:16e6cdb1991ff1f15f469b12fffb5b20f00b1ecff8c1073c23c7760fba90fcbc"},
-    {file = "torch-2.1.1+cpu-cp310-cp310-win_amd64.whl", hash = "sha256:8e4e47aa4a004d2f5edd516b296da6fba07981ae9d1fc0da862abf651dc07d96"},
-    {file = "torch-2.1.1+cpu-cp311-cp311-linux_x86_64.whl", hash = "sha256:d83b13cb17544f9851cc31fed197865eae0c0f5d32df9d8d6d8535df7d2e5109"},
-    {file = "torch-2.1.1+cpu-cp311-cp311-win_amd64.whl", hash = "sha256:23be0cb945970443c97d4f9ea61ed03b27f924d835de689dd4134f30966c13f7"},
-    {file = "torch-2.1.1+cpu-cp38-cp38-linux_x86_64.whl", hash = "sha256:9399a8dfe4833bb544e7a0c332c47db1e389a06b4ae5ac9b3b167d863adc95d9"},
-    {file = "torch-2.1.1+cpu-cp38-cp38-win_amd64.whl", hash = "sha256:d8e19bb465e1fa15f3231ff57bbf0a673e5dcaca39eee4f58a4be7832b80c9da"},
-    {file = "torch-2.1.1+cpu-cp39-cp39-linux_x86_64.whl", hash = "sha256:b2cc98815251f8a2d102c2f8f4afe8304c2df61ce9c237198032c7903d97fdbb"},
-    {file = "torch-2.1.1+cpu-cp39-cp39-win_amd64.whl", hash = "sha256:b09d431c8e53511b6c3624f1d79cce9cd28f4c27ca20c5a49e4dcc1f9e7377e5"},
-]
-
-[package.dependencies]
-filelock = "*"
-fsspec = "*"
-jinja2 = "*"
-networkx = "*"
-sympy = "*"
-typing-extensions = "*"
-
-[package.extras]
-dynamo = ["jinja2"]
-opt-einsum = ["opt-einsum (>=3.3)"]
-
-[package.source]
-type = "legacy"
-url = "https://download.pytorch.org/whl/cpu"
-reference = "torch-cpu"
-
-[[package]]
 name = "torcheval"
 version = "0.0.7"
 description = "A library for providing a simple interface to create new metrics and an easy-to-use toolkit for metric computations and checkpointing."
@@ -3399,37 +3365,6 @@ torch = "2.1.1"
 
 [package.extras]
 scipy = ["scipy"]
-
-[[package]]
-name = "torchvision"
-version = "0.16.1+cpu"
-description = "image and video datasets and models for torch deep learning"
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "torchvision-0.16.1+cpu-cp310-cp310-linux_x86_64.whl", hash = "sha256:52442b5408dab35fedc6ccd75a7df38aadb6eb5d078184ac04ba7c1a9db8ae9c"},
-    {file = "torchvision-0.16.1+cpu-cp310-cp310-win_amd64.whl", hash = "sha256:d77afeed3fe309f3f73943431840d40fa61a33a52076bbb780c63e6b5f79962a"},
-    {file = "torchvision-0.16.1+cpu-cp311-cp311-linux_x86_64.whl", hash = "sha256:574b58e20ca89ebd2d8d1ff72dc6e6944734ed1327849214a349c39d5454ac4f"},
-    {file = "torchvision-0.16.1+cpu-cp311-cp311-win_amd64.whl", hash = "sha256:f6fed6f1311d34c4751d70d60408ea8526842ede66f5aad7272d6de5c4337ebc"},
-    {file = "torchvision-0.16.1+cpu-cp38-cp38-linux_x86_64.whl", hash = "sha256:53a5f20778bb300038d1846fb111e73ae5d4babc6b9cfb6a6cbeb2eefa399c0b"},
-    {file = "torchvision-0.16.1+cpu-cp38-cp38-win_amd64.whl", hash = "sha256:89b9bf0e80fc4c45f114707d61e15741ce0e9591badf29aa939863be9fd9543d"},
-    {file = "torchvision-0.16.1+cpu-cp39-cp39-linux_x86_64.whl", hash = "sha256:048b029410bc4c7ce87b1f2b621fd8b88249c68350ee773c3152faa088e9fcca"},
-    {file = "torchvision-0.16.1+cpu-cp39-cp39-win_amd64.whl", hash = "sha256:73a4b3317eae425baabefe6b61197c75b0b766f1809c5cfdad07dd6bfad255a2"},
-]
-
-[package.dependencies]
-numpy = "*"
-pillow = ">=5.3.0,<8.3.dev0 || >=8.4.dev0"
-requests = "*"
-torch = "2.1.1"
-
-[package.extras]
-scipy = ["scipy"]
-
-[package.source]
-type = "legacy"
-url = "https://download.pytorch.org/whl/cpu"
-reference = "torch-cpu"
 
 [[package]]
 name = "tornado"
@@ -3697,4 +3632,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "8e4a528a36932a90516553224ad2551f4090c19136831b7fb4b9cb587482b681"
+content-hash = "ef231972277bbcc4747e35bae6732bdcb5795aee17522c2161e0f8389cc0a3c5"
