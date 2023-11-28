@@ -66,6 +66,7 @@ jobs:
     - name: Test with pytest
       uses: nick-fields/retry@v2
       with:
+        shell: bash
         timeout_minutes: 5
         command: poetry run pytest --reruns 5 --reruns-delay 1
         new_command_on_retry: poetry run pytest --reruns 5 --reruns-delay 1 --last-failed
