@@ -21,7 +21,7 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.8"
-torch = { version = "*", source = "torch-cpu" }
+torch = "*"
 torcheval = "*"
 pandas = "*"
 numpy = "*"
@@ -37,16 +37,10 @@ tensorboard = "*"
 
 
 [tool.poetry.group.examples.dependencies]
-torchvision = { version = "*", source = "torch-cpu" }
+torchvision = "*"
 jupyterlab = "^4.0.7"
 jupytext = "^1.15.2"
 matplotlib = "^3.6.0"
-
-[[tool.poetry.source]]
-name = "torch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-priority = "explicit"
-
 
 [tool.poetry-dynamic-versioning]
 enable = true
