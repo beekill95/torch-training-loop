@@ -1,4 +1,4 @@
-[![Tests](https://github.com/beekill95/torch-training-loop/workflows/Tests/badge.svg)](https://github.com/beekill95/torch-training-loop/actions?query=workflow:"Tests")
+[![Tests](https://github.com/beekill95/torch-training-loop/actions/workflows/python-package.yml/badge.svg?branch=main)](https://github.com/beekill95/torch-training-loop/actions?query=workflow:"Tests")
 [![License](https://img.shields.io/badge/License-MIT-blue)](#license)
 [![PyPI - Version](https://img.shields.io/pypi/v/torch-training-loop)](https://pypi.org/project/torch-training-loop/)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/torch-training-loop)
