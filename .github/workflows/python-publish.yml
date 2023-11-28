@@ -20,7 +20,7 @@ jobs:
     - name: Install Poetry Action
       uses: snok/install-poetry@v1.3.4
       with:
-        version: 1.5.1
+        version: 1.7.1
     - name: Build and Publish to PyPI
       run: |
         poetry self add "poetry-dynamic-versioning[plugin]"
