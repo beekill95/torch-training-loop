@@ -22,8 +22,8 @@ classifiers = [
 [tool.poetry.dependencies]
 python = "^3.8"
 torch = [
-    { version = "*", source = "torch-cpu", platform = "linux" },
-    { version = "*", platform = "darwin || win32" },
+    { version = "*", source = "torch-cpu", markers = "sys_platform == 'linux'" },
+    { version = "*", markers = "sys_platform == 'win32' or sys_platform == 'darwin'"  },
 ]
 torcheval = "*"
 pandas = "*"
@@ -40,7 +40,10 @@ tensorboard = "*"
 
 
 [tool.poetry.group.examples.dependencies]
-torchvision = { version = "*", source = "torch-cpu" }
+torchvision = [
+    { version = "*", source = "torch-cpu", markers = "sys_platform == 'linux'" },
+    { version = "*", markers = "sys_platform == 'win32' or sys_platform == 'darwin'"  },
+]
 jupyterlab = "^4.0.7"
 jupytext = "^1.15.2"
 matplotlib = "^3.6.0"
