@@ -59,7 +59,16 @@ jobs:
         key: venv-${{ runner.os }}-py-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
     - name: Install dependencies
       if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-      run: poetry install --no-interaction --no-root --only main,dev
+      run: |
+        poetry export -f requirements.txt --without-hashes --only main,dev -o requirements.txt
+        if [ $OS_VAR = 'macOS' ]
+        then
+          sed -r -i 's/\+cu118//' requirements.txt
+        fi
+
+        python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
+      env:
+        OS_VAR: ${{ runner.os }}
     - name: Install project
       run: poetry install --no-interaction --only-root
     # - name: Lint with flake8
