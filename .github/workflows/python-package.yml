@@ -63,17 +63,13 @@ jobs:
         poetry export -f requirements.txt --without-hashes --only main,dev -o requirements.txt
         if [ $OS_VAR = 'Linux' ]
         then
-          sed '/nvidia-/d' requirements.txt \
+          mv requirements.txt requirements-temp.txt
+          sed '/nvidia-/d' requirements-temp.txt \
             | sed -r 's/torch==[0-9].[0-9].[0-9]/&+cpu/' \
             | sed '1s/^/--extra-index-url https:\/\/download.pytorch.org\/whl\/cpu\n/' > requirements.txt
         fi
 
-        if [ $OS_VAR = 'Windows' ]
-        then
-          python -m venv .venv && .venv/Scripts/activate.bat && pip install -r requirements.txt
-        else
-          python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
-        fi
+        python -m venv .venv && source $VENV && pip install -r requirements.txt
       env:
         OS_VAR: ${{ runner.os }}
     - name: Install project
