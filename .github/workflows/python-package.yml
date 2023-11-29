@@ -63,10 +63,17 @@ jobs:
         poetry export -f requirements.txt --without-hashes --only main,dev -o requirements.txt
         if [ $OS_VAR = 'macOS' ]
         then
-          sed -r -i 's/\+cu118//' requirements.txt
+          sed -r -i'' 's/\+cu118//' requirements.txt
+        else
+          sed -r -i 's/\+cu118/+cpu/' requirements.txt
         fi
 
-        python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
+        if [ $OS_VAR = 'Windows' ]
+        then
+          python -m venv .venv && .venv/Scripts/activate.bat && pip install -r requirements.txt
+        else
+          python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
+        fi
       env:
         OS_VAR: ${{ runner.os }}
     - name: Install project
