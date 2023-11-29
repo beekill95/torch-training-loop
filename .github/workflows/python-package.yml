@@ -61,11 +61,11 @@ jobs:
       if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
       run: |
         poetry export -f requirements.txt --without-hashes --only main,dev -o requirements.txt
-        if [ $OS_VAR = 'macOS' ]
+        if [ $OS_VAR = 'Linux' ]
         then
-          sed -r -i'' 's/\+cu118//' requirements.txt
-        else
-          sed -r -i 's/\+cu118/+cpu/' requirements.txt
+          sed '/nvidia-/d' requirements.txt \
+            | sed -r 's/torch==[0-9].[0-9].[0-9]/&+cpu/' \
+            | sed '1s/^/--extra-index-url https:\/\/download.pytorch.org\/whl\/cpu\n/' > requirements.txt
         fi
 
         if [ $OS_VAR = 'Windows' ]
