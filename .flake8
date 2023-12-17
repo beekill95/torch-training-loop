@@ -1,8 +1,5 @@
 [flake8]
 per-file-ignores =
-    # imported but unused
-    __init__.py: F401
-    src/training_loop/distributed.py: F401
     tests/training_loops/simple_training_step_util_test.py: E124
 
 max-line-length = 88
