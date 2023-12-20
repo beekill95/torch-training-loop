@@ -118,7 +118,7 @@ class GarmentGenerator(nn.Module):
         super().__init__()
 
         self.hidden = nn.Sequential(
-            nn.Linear(input_size, 200),
+            nn.Linear(input_size + n_classes, 200),
             nn.ReLU(),
             nn.Linear(200, 400),
             nn.ReLU(),
@@ -130,9 +130,8 @@ class GarmentGenerator(nn.Module):
         self.unflatten = nn.Unflatten(dim=1, unflattened_size=(1, 28, 28))
 
     def forward(self, input: GeneratorInput):
-        # signal, clazz = input["signal"], input["class"]
-        # x = torch.cat([signal, clazz], dim=-1)
-        x = input["signal"]
+        signal, clazz = input["signal"], input["class"]
+        x = torch.cat([signal, clazz], dim=-1)
         x = self.hidden(x)
         x = self.output(x)
         x = self.unflatten(x)
@@ -146,7 +145,7 @@ class GarmentCritic(nn.Module):
 
         self.flatten = nn.Flatten()
         self.hidden = nn.Sequential(
-            nn.Linear(28 * 28, 400),
+            nn.Linear(28 * 28 + n_classes, 400),
             nn.ReLU(),
             nn.Linear(400, 200),
             nn.ReLU(),
@@ -158,9 +157,8 @@ class GarmentCritic(nn.Module):
         )
 
     def forward(self, input: CriticInput):
-        # image, clazz = self.flatten(input["image"]), input["class"]
-        # x = torch.concat((image, clazz), dim=-1)
-        x = self.flatten(input["image"])
+        image, clazz = self.flatten(input["image"]), input["class"]
+        x = torch.concat((image, clazz), dim=-1)
         x = self.hidden(x)
         x = self.output(x)
         return x
@@ -247,7 +245,7 @@ class Garment_WGAN_GP_TrainingStep(TrainingStep[GarmentConditionalGAN, TData]):
 
         images, labels = data
         images = images.to(device)
-        # labels = F.one_hot(labels, self.n_classes).to(device)
+        labels = F.one_hot(labels, self.n_classes).to(device)
 
         # Optimizing the critic.
         for _ in range(self.critic_steps):
@@ -257,7 +255,7 @@ class Garment_WGAN_GP_TrainingStep(TrainingStep[GarmentConditionalGAN, TData]):
             self.optim_critic.step()
 
             with torch.no_grad():
-                self.train_losses["critic_loss"].update()
+                self.train_losses["critic_loss"].update(critic_loss.detach())
 
         # Optimizing the generator.
         self.optim_generator.zero_grad()
@@ -281,7 +279,7 @@ class Garment_WGAN_GP_TrainingStep(TrainingStep[GarmentConditionalGAN, TData]):
 
         images, labels = data
         images = images.to(device)
-        # labels = F.one_hot(labels, self.n_classes).to(device)
+        labels = F.one_hot(labels, self.n_classes).to(device)
 
         critic_loss = self._critic_step(model, (images, labels), device, False)
         generator_loss = self._generator_step(model, (images, labels), device)
@@ -323,12 +321,19 @@ class Garment_WGAN_GP_TrainingStep(TrainingStep[GarmentConditionalGAN, TData]):
 
         # Generate fake images.
         fake_images = model(
-            {"signal": signal, "class": labels}, network="generator"
+            {"signal": signal, "class": labels},
+            network="generator",
         ).detach()
 
         # Let the critic discriminates between the images.
-        real_critic = model({"image": images, "class": labels}, network="critic")
-        fake_critic = model({"image": fake_images, "class": labels}, network="critic")
+        real_critic = model(
+            {"image": images, "class": labels},
+            network="critic",
+        )
+        fake_critic = model(
+            {"image": fake_images, "class": labels},
+            network="critic",
+        )
         critic_loss = fake_critic - real_critic
 
         # Calculate the gradient penalty term.
@@ -373,14 +378,17 @@ class Garment_WGAN_GP_TrainingStep(TrainingStep[GarmentConditionalGAN, TData]):
         images: torch.Tensor,
         labels: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        # labels = labels.to(dtype=torch.float32).requires_grad_()
+        labels = labels.to(dtype=torch.float32).requires_grad_()
         mixed_scores = model({"image": images, "class": labels}, network="critic")
 
         # Take the gradient of the scores wrt the images.
         gradients = torch.autograd.grad(
-            inputs=images,
+            inputs=(images, labels),
             outputs=mixed_scores,
-            grad_outputs=torch.ones_like(mixed_scores),
+            grad_outputs=(
+                torch.ones_like(mixed_scores),
+                torch.ones_like(labels),
+            ),
             create_graph=True,
             retain_graph=True,
         )
@@ -415,7 +423,7 @@ loop = TrainingLoop(
     model,
     step=Garment_WGAN_GP_TrainingStep(
         signal_length=signal_length,
-        n_classes=0,
+        n_classes=10,
         lr=1e-4,
     ),
     device=device,
@@ -423,7 +431,7 @@ loop = TrainingLoop(
 _ = loop.fit(
     training_loader,
     validation_loader,
-    epochs=3 if device == "cpu" else 100,
+    epochs=10 if device == "cpu" else 100,
     callbacks=[
         EarlyStopping(
             "val_abs_distance",
