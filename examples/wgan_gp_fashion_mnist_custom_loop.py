@@ -12,13 +12,13 @@
 #     language: python
 #     name: python3
 # ---
-
 # %%
 from __future__ import annotations
 
-from typing import Literal, Union
+from typing import Literal
 from typing import Tuple
 from typing import TypedDict
+from typing import Union
 
 import matplotlib.pyplot as plt
 import torch
@@ -38,12 +38,10 @@ from training_loop.callbacks import EarlyStopping
 
 # %%
 # Transform the images to range (-1, 1).
-transform = transforms.Compose(
-    [
-        transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,)),
-    ]
-)
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.5,), (0.5,)),
+])
 
 # Create datasets for training & validation, download if necessary
 MNIST = torchvision.datasets.FashionMNIST
@@ -114,6 +112,7 @@ CriticInput = TypedDict(
 
 
 class GarmentGenerator(nn.Module):
+
     def __init__(self, input_size, n_classes) -> None:
         super().__init__()
 
@@ -140,6 +139,7 @@ class GarmentGenerator(nn.Module):
 
 # In WGAN, discriminator is called critic.
 class GarmentCritic(nn.Module):
+
     def __init__(self, n_classes: int) -> None:
         super().__init__()
 
@@ -152,9 +152,7 @@ class GarmentCritic(nn.Module):
             nn.Linear(200, 100),
             nn.ReLU(),
         )
-        self.output = nn.Sequential(
-            nn.Linear(100, 1),
-        )
+        self.output = nn.Sequential(nn.Linear(100, 1),)
 
     def forward(self, input: CriticInput):
         image, clazz = self.flatten(input["image"]), input["class"]
@@ -165,6 +163,7 @@ class GarmentCritic(nn.Module):
 
 
 class GarmentConditionalGAN(nn.Module):
+
     def __init__(self, signal_length: int, n_classes: int) -> None:
         super().__init__()
 
@@ -193,6 +192,7 @@ TDevice = Union[torch.device, str]
 
 
 class Garment_WGAN_GP_TrainingStep(TrainingStep[GarmentConditionalGAN, TData]):
+
     def __init__(
         self,
         signal_length: int,
@@ -321,17 +321,26 @@ class Garment_WGAN_GP_TrainingStep(TrainingStep[GarmentConditionalGAN, TData]):
 
         # Generate fake images.
         fake_images = model(
-            {"signal": signal, "class": labels},
+            {
+                "signal": signal,
+                "class": labels
+            },
             network="generator",
         ).detach()
 
         # Let the critic discriminates between the images.
         real_critic = model(
-            {"image": images, "class": labels},
+            {
+                "image": images,
+                "class": labels
+            },
             network="critic",
         )
         fake_critic = model(
-            {"image": fake_images, "class": labels},
+            {
+                "image": fake_images,
+                "class": labels
+            },
             network="critic",
         )
         critic_loss = fake_critic - real_critic
@@ -456,8 +465,7 @@ fig, axes = plt.subplots(
 for i in range(len(classes)):
     with torch.no_grad():
         clazz = F.one_hot(
-            torch.tensor([i] * n_images_per_class), num_classes=len(classes)
-        ).to(device)
+            torch.tensor([i] * n_images_per_class), num_classes=len(classes)).to(device)
         signal = torch.randn((n_images_per_class, signal_length), device=device)
 
         # Feed into the generator.
