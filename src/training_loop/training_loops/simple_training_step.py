@@ -27,26 +27,48 @@ if TYPE_CHECKING:
 
 # Loss Functions.
 TLossFn = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
-TLoss = Union[TLossFn, Sequence[TLossFn], Dict[str, Union[TLossFn, Sequence[TLossFn]]]]
-TLossWeights = Union[Sequence[float], Dict[str, Union[float, Sequence[float]]]]
+TLoss = Union[
+    TLossFn,
+    Sequence[TLossFn],
+    Dict[str, Union[TLossFn, Sequence[TLossFn]]],
+]
+TLossWeights = Union[
+    Sequence[float],
+    Dict[str, Union[float, Sequence[float]]],
+]
 
 # Metrics.
 NamedMetric = Tuple[str, Metric[torch.Tensor]]
-TMetrics = Union[NamedMetric, List[NamedMetric], Dict[str, Union[NamedMetric,
-                                                                 List[NamedMetric]]]]
+TMetrics = Union[
+    NamedMetric,
+    List[NamedMetric],
+    Dict[str, Union[NamedMetric, List[NamedMetric]]],
+]
 
 # Optimizer function.
-TOptimFn = Callable[[Iterator[nn.Parameter]], optim.Optimizer]
+TOptimFn = Callable[
+    [Iterator[nn.Parameter]],
+    optim.Optimizer,
+]
 
 # Data passed in train and val steps.
-TInputs = Union[torch.Tensor, Sequence[torch.Tensor], Dict[str, torch.Tensor]]
+TInputs = Union[
+    torch.Tensor,
+    Sequence[torch.Tensor],
+    Dict[str, torch.Tensor],
+]
 TOutputs = TInputs
 TSampleWeights = TOutputs
-TSimpleData = Union[Tuple[TInputs, TOutputs], Tuple[TInputs, TOutputs, TSampleWeights]]
+TSimpleData = Union[
+    Tuple[TInputs, TOutputs],
+    Tuple[TInputs, TOutputs, TSampleWeights],
+]
 
 
-class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData],
-                         DistributedTrainingStep[TSimpleData]):
+class SimpleTrainingStep(
+    TrainingStep[nn.Module, TSimpleData],
+    DistributedTrainingStep[TSimpleData],
+):
     """
     A simple training step that implements both the base TrainingStep
     and the DistributedTrainingStep classes. Thus, it can be used in
@@ -118,7 +140,7 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData],
         self._loss_fn = loss
         self._loss_weights = loss_weights
 
-        self._train_metrics = metrics
+        self._train_metrics = metrics or []
         self._val_metrics = clone_metrics(metrics)
 
     def init(self, model: nn.Module, device: TDevice) -> None:
@@ -133,8 +155,12 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData],
     def init_distributed(self, model: DDP, device: int):
         self.init(model, device)
 
-    def train_step(self, model: nn.Module, data: TSimpleData,
-                   device: TDevice) -> dict[str, float]:
+    def train_step(
+        self,
+        model: nn.Module,
+        data: TSimpleData,
+        device: TDevice,
+    ) -> dict[str, float]:
         """
         Perform one training step on the given batch data.
 
@@ -165,13 +191,21 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData],
         # Return the metrics.
         return self.compute_train_metrics()
 
-    def train_step_distributed(self, model: DDP, data: TSimpleData,
-                               device: int) -> dict[str, float]:
+    def train_step_distributed(
+        self,
+        model: DDP,
+        data: TSimpleData,
+        device: int,
+    ) -> dict[str, float]:
         return self.train_step(model, data, device)
 
     @torch.no_grad()
-    def val_step(self, model: nn.Module, data: TSimpleData,
-                 device: TDevice) -> dict[str, float]:
+    def val_step(
+        self,
+        model: nn.Module,
+        data: TSimpleData,
+        device: TDevice,
+    ) -> dict[str, float]:
         """
         Perform one validation step on the given batch data.
 
@@ -191,12 +225,20 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData],
         return self.compute_val_metrics()
 
     @torch.no_grad()
-    def val_step_distributed(self, model: DDP, data: TSimpleData,
-                             device: int) -> dict[str, float]:
+    def val_step_distributed(
+        self,
+        model: DDP,
+        data: TSimpleData,
+        device: int,
+    ) -> dict[str, float]:
         return self.val_step(model, data, device)
 
-    def _forward_pass(self, model: nn.Module, data: TSimpleData,
-                      device: TDevice) -> tuple[torch.Tensor, TOutputs, TOutputs]:
+    def _forward_pass(
+        self,
+        model: nn.Module,
+        data: TSimpleData,
+        device: TDevice,
+    ) -> tuple[torch.Tensor, TOutputs, TOutputs]:
         """
         Perform a forward pass to obtain predicted values and loss.
 
@@ -227,7 +269,8 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData],
             y_pred=y_pred,
             y_true=y,
             loss_weights=self._loss_weights,
-            sample_weights=sample_weights)
+            sample_weights=sample_weights,
+        )
 
         return loss, y_pred, y
 
@@ -252,7 +295,7 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData],
     @torch.no_grad()
     def compute_train_metrics(self) -> dict[str, float]:
         return {
-            'loss': self._train_loss.compute().detach().cpu().item(),
+            "loss": self._train_loss.compute().detach().cpu().item(),
             **compute_metrics(self._train_metrics),
         }
 
@@ -263,7 +306,7 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData],
     @torch.no_grad()
     def compute_val_metrics(self) -> dict[str, float]:
         return {
-            'loss': self._val_loss.compute().detach().cpu().item(),
+            "loss": self._val_loss.compute().detach().cpu().item(),
             **compute_metrics(self._val_metrics),
         }
 
@@ -281,14 +324,24 @@ class SimpleTrainingStep(TrainingStep[nn.Module, TSimpleData],
         return X, y
 
     @torch.no_grad()
-    def _update_train_metrics(self, *, train_loss: torch.Tensor, y_pred: torch.Tensor,
-                              y_true: torch.Tensor) -> None:
+    def _update_train_metrics(
+        self,
+        *,
+        train_loss: torch.Tensor,
+        y_pred: torch.Tensor,
+        y_true: torch.Tensor,
+    ) -> None:
         self._train_loss.update(train_loss)
         update_metrics(self._train_metrics, y_pred=y_pred, y_true=y_true)
 
     @torch.no_grad()
-    def _update_val_metrics(self, *, val_loss: torch.Tensor, y_pred: torch.Tensor,
-                            y_true: torch.Tensor) -> None:
+    def _update_val_metrics(
+        self,
+        *,
+        val_loss: torch.Tensor,
+        y_pred: torch.Tensor,
+        y_true: torch.Tensor,
+    ) -> None:
         self._val_loss.update(val_loss)
         update_metrics(self._val_metrics, y_pred=y_pred, y_true=y_true)
 
@@ -301,7 +354,7 @@ def transfer_data(data: TInputs, device: TDevice) -> TInputs:
     elif isinstance(data, dict):
         return {k: v.to(device) for k, v in data.items()}
     else:
-        raise ValueError(f'Unknown data structure: {data}.')
+        raise ValueError(f"Unknown data structure: {data}.")
 
 
 # Loss stuffs.
@@ -330,8 +383,11 @@ def _calc_single_loss(
 
     Returns: A scalar tensor.
     """
-    assert isinstance(input, torch.Tensor) and isinstance(
-        target, torch.Tensor) and (weight is None or isinstance(weight, torch.Tensor))
+    assert (
+        isinstance(input, torch.Tensor)
+        and isinstance(target, torch.Tensor)
+        and (weight is None or isinstance(weight, torch.Tensor))
+    )
 
     # Loss functions in torch expect input first, and then target.
     loss = loss_fn(input, target)
@@ -359,8 +415,9 @@ def _calc_single_loss(
             return torch.mean(loss * weight)
 
         raise ValueError(
-            'Incomptible loss and sample weight shape. '
-            f'Loss\' shape={loss.shape} while weight\'s shape={weight.shape}')
+            "Incomptible loss and sample weight shape. "
+            f"Loss' shape={loss.shape} while weight's shape={weight.shape}"
+        )
 
 
 def _loss_weighted_average(
@@ -371,11 +428,12 @@ def _loss_weighted_average(
         if weights is None:
             return sum(losses) / float(len(losses))
         elif isinstance(weights, Sequence):
-            total_loss = 0.
-            total_weight = 0.
+            total_loss = 0.0
+            total_weight = 0.0
 
             assert len(losses) == len(
-                weights), 'Some loss functions\' weight(s) were not provided!'
+                weights
+            ), "Some loss functions' weight(s) were not provided!"
 
             for loss, weight in zip(losses, weights):
                 total_loss += loss * weight
@@ -386,8 +444,8 @@ def _loss_weighted_average(
         if weights is None:
             return sum(losses.values()) / float(len(losses))
         elif isinstance(weights, dict):
-            total_loss = 0.
-            total_weight = 0.
+            total_loss = 0.0
+            total_weight = 0.0
 
             for key in losses.keys():
                 w = weights[key]
@@ -397,8 +455,10 @@ def _loss_weighted_average(
 
             return total_loss / total_weight
 
-    raise ValueError('Incomptible type between losses and loss weights.\n'
-                     f'Loss = {losses}\nLoss weights = {weights}.')
+    raise ValueError(
+        "Incomptible type between losses and loss weights.\n"
+        f"Loss = {losses}\nLoss weights = {weights}."
+    )
 
 
 def calc_loss(
@@ -444,34 +504,37 @@ def calc_loss(
         assert (sample_weights is None) or isinstance(sample_weights, dict)
 
         losses = {
-            key:
-                calc_loss(
-                    loss_fns[key],
-                    y_pred=y_pred[key],
-                    y_true=y_true[key],
-                    sample_weights=sample_weights[key]
-                    if sample_weights is not None else None,
-                    loss_weights=loss_weights[key]
-                    if loss_weights is not None else None,
-                ) for key in loss_fns.keys()
+            key: calc_loss(
+                loss_fns[key],
+                y_pred=y_pred[key],
+                y_true=y_true[key],
+                sample_weights=sample_weights[key]
+                if sample_weights is not None
+                else None,
+                loss_weights=loss_weights[key] if loss_weights is not None else None,
+            )
+            for key in loss_fns.keys()
         }
         return _loss_weighted_average(losses, loss_weights)
 
     elif isinstance(loss_fns, Sequence):
         if isinstance(y_pred, Sequence):
-            assert len(loss_fns) == len(y_pred) == len(
-                y_true
-            ), 'The number of loss functions should match the number of outputs.'
+            assert (
+                len(loss_fns) == len(y_pred) == len(y_true)
+            ), "The number of loss functions should match the number of outputs."
 
             if sample_weights is None:
                 sample_weights = (None,) * len(loss_fns)
 
             losses = []
-            for loss_fn, input, target, sample_weight in zip(loss_fns, y_pred, y_true,
-                                                             sample_weights):
+            for loss_fn, input, target, sample_weight in zip(
+                loss_fns, y_pred, y_true, sample_weights
+            ):
                 losses.append(
                     _calc_single_loss(
-                        loss_fn, input=input, target=target, weight=sample_weight))
+                        loss_fn, input=input, target=target, weight=sample_weight
+                    )
+                )
 
         elif isinstance(y_pred, torch.Tensor):
             # WONDERING: in this case, can the sample weights be a sequence?
@@ -479,17 +542,19 @@ def calc_loss(
             # function. Should we allow it?
             losses = [
                 _calc_single_loss(
-                    loss_fn, input=y_pred, target=y_true, weight=sample_weights)
+                    loss_fn, input=y_pred, target=y_true, weight=sample_weights
+                )
                 for loss_fn in loss_fns
             ]
         else:
-            raise ValueError(f'Unsupported output type for loss calculation: {y_pred}')
+            raise ValueError(f"Unsupported output type for loss calculation: {y_pred}")
 
         return _loss_weighted_average(losses, loss_weights)
 
     else:
         return _calc_single_loss(
-            loss_fns, input=y_pred, target=y_true, weight=sample_weights)
+            loss_fns, input=y_pred, target=y_true, weight=sample_weights
+        )
 
 
 # Metrics-Related Functions.
@@ -570,8 +635,9 @@ def update_metrics(
                 metric.update(pred, target)
         else:
             raise ValueError(
-                'If `metrics` is a list, then both `y_true` and `y_pred`'
-                ' must either be a single tensor or a sequence of tensors.')
+                "If `metrics` is a list, then both `y_true` and `y_pred`"
+                " must either be a single tensor or a sequence of tensors."
+            )
     else:
         # `metrics` is just a single metric.
         assert isinstance(y_true, torch.Tensor) and isinstance(y_pred, torch.Tensor)
@@ -579,18 +645,19 @@ def update_metrics(
 
 
 def compute_metrics(metrics: TMetrics) -> dict[str, float]:
-
     def compute(metric: Metric[torch.Tensor]):
         return metric.compute().detach().cpu().item()
 
     if isinstance(metrics, list):
         return {name: compute(metric) for name, metric in metrics}
     elif isinstance(metrics, dict):
-        results = [{
-            f'{key}_{name}': value
-            for name, value in compute_metrics(submetrics).items()
-        }
-                   for key, submetrics in metrics.items()]
+        results = [
+            {
+                f"{key}_{name}": value
+                for name, value in compute_metrics(submetrics).items()
+            }
+            for key, submetrics in metrics.items()
+        ]
 
         return dict(ChainMap(*results))
     else:
@@ -599,21 +666,24 @@ def compute_metrics(metrics: TMetrics) -> dict[str, float]:
 
 
 def compute_metrics_synced(loss: Metric, metrics: TMetrics) -> dict[str, float]:
-
     def to_dict(metrics: TMetrics) -> dict[str, Metric]:
         if isinstance(metrics, list):
             return {name: metric for name, metric in metrics}
         elif isinstance(metrics, dict):
-            dicts = [{
-                f'{key}_{name}': metric for name, metric in to_dict(submetrics).items()
-            } for key, submetrics in metrics.items()]
+            dicts = [
+                {
+                    f"{key}_{name}": metric
+                    for name, metric in to_dict(submetrics).items()
+                }
+                for key, submetrics in metrics.items()
+            ]
 
             return dict(ChainMap(*dicts))
         else:
             name, metric = metrics
             return {name: metric}
 
-    metrics = {**to_dict(metrics), 'loss': loss}
+    metrics = {**to_dict(metrics), "loss": loss}
     metrics = sync_and_compute_collection(metrics)
 
     return {name: metric.detach().cpu().item() for name, metric in metrics.items()}
