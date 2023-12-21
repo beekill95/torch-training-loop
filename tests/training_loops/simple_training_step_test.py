@@ -8,6 +8,7 @@ import numpy as np
 import torch
 from torch import nn
 from torch import optim
+from torcheval.metrics import Mean
 from torcheval.metrics import Metric
 from training_loop.training_loops.simple_training_step import SimpleTrainingStep
 
@@ -64,6 +65,29 @@ def test_loop_init(clone_metrics, move_metrics):
         call(fake_metrics, instances.device),
     ],
                                   any_order=False)
+
+
+def test_create_step():
+    # Create step without metrics nor loss weights should be ok.
+    SimpleTrainingStep(
+        optimizer_fn=lambda params: optim.Adam(params, lr=1e-4),
+        loss=nn.MSELoss(),
+    )
+
+    # Create step with only metrics.
+    SimpleTrainingStep(
+        optimizer_fn=lambda params: optim.Adam(params, lr=1e-4),
+        loss=nn.MSELoss(),
+        metrics=('mean', Mean()),
+    )
+
+    # Create step with both metrics and loss weights.
+    SimpleTrainingStep(
+        optimizer_fn=lambda params: optim.Adam(params, lr=1e-4),
+        loss=(nn.MSELoss(), nn.L1Loss()),
+        metrics=('mean', Mean()),
+        loss_weights=(0.5, 0.25),
+    )
 
 
 class TestTraining:

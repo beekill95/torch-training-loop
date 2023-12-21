@@ -140,7 +140,8 @@ class SimpleTrainingStep(
         self._loss_fn = loss
         self._loss_weights = loss_weights
 
-        self._train_metrics = metrics or []
+        metrics = metrics or []
+        self._train_metrics = metrics
         self._val_metrics = clone_metrics(metrics)
 
     def init(self, model: nn.Module, device: TDevice) -> None:
