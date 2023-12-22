@@ -16,12 +16,12 @@ class ProgressReporter(AbstractContextManager):
     """
 
     def __init__(
-            self,
-            epoch: int,
-            *,
-            total_epochs: int,
-            total_batches: int | float = float('inf'),
-            verbose: int = 1,
+        self,
+        epoch: int,
+        *,
+        total_epochs: int,
+        total_batches: int | float = float("inf"),
+        verbose: int = 1,
     ) -> None:
         """
         Construct progress reporter instance for an epoch.
@@ -52,10 +52,10 @@ class ProgressReporter(AbstractContextManager):
         return self
 
     def __exit__(
-            self,
-            exc_type: type[BaseException] | None,  # noqa
-            exc_value: BaseException | None,  # noqa
-            traceback: TracebackType | None,  # noqa
+        self,
+        exc_type: type[BaseException] | None,  # noqa
+        exc_value: BaseException | None,  # noqa
+        traceback: TracebackType | None,  # noqa
     ) -> bool | None:
         self.close_report()
 
@@ -77,9 +77,9 @@ class ProgressReporter(AbstractContextManager):
         elif epoch in [1, epochs] or verbose == 2 or (epoch % verbose == 0):
             print(
                 self._get_epoch_description(desc),
-                ': ',
+                ": ",
                 format_metrics(metrics),
-                sep='',
+                sep="",
             )
 
     def report_batch_progress(self, desc: str, metrics: dict[str, float]) -> None:
@@ -92,11 +92,11 @@ class ProgressReporter(AbstractContextManager):
             self._bar.close()
 
     def _get_epoch_description(self, desc: str | None = None):
-        epoch_str = f'Epoch {self._epoch}/{self._epochs}'
-        return f'{epoch_str} - {desc}' if desc else epoch_str
+        epoch_str = f"Epoch {self._epoch}/{self._epochs}"
+        return f"{epoch_str} - {desc}" if desc else epoch_str
 
     def _set_bar_desciption(self, desc):
-        if not hasattr(self, '_cur_desc'):
+        if not hasattr(self, "_cur_desc"):
             self._cur_desc = None
 
         if self._bar and self._cur_desc != desc:
@@ -105,5 +105,11 @@ class ProgressReporter(AbstractContextManager):
 
 
 def format_metrics(metrics: dict[str, float]) -> str:
-    strs = (f'{k}={v:.4f}' for k, v in metrics.items())
-    return '; '.join(strs)
+    def format_value(value: float) -> str:
+        if 1e-3 <= value <= 1e3:
+            return f"{value:.4f}"
+        else:
+            return f"{value:.4e}"
+
+    strs = (f"{k}={format_value(v)}" for k, v in metrics.items())
+    return "; ".join(strs)
