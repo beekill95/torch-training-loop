@@ -6,6 +6,15 @@
 * Implement evaluation loop.
 * Support mixed-precision training.
 
+## [v0.1.3](https://github.com/beekill95/torch-training-loop/releases/tag/v0.1.3) - 2023-12-22
+
+### Fixed
+
+* Not passing metrics to SimpleTrainingStep won't cause initialization error.
+([#26](https://github.com/beekill95/torch-training-loop/issues/26))
+* Displaying scientific notation when metrics values becoming too large or too small.
+([#29](https://github.com/beekill95/torch-training-loop/issues/29))
+
 ## [v0.1.2](https://github.com/beekill95/torch-training-loop/releases/tag/v0.1.2) - 2023-11-27
 
 ### Changed
