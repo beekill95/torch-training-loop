@@ -16,12 +16,12 @@ class ProgressReporter(AbstractContextManager):
     """
 
     def __init__(
-        self,
-        epoch: int,
-        *,
-        total_epochs: int,
-        total_batches: int | float = float("inf"),
-        verbose: int = 1,
+            self,
+            epoch: int,
+            *,
+            total_epochs: int,
+            total_batches: int | float = float("inf"),
+            verbose: int = 1,
     ) -> None:
         """
         Construct progress reporter instance for an epoch.
@@ -52,10 +52,10 @@ class ProgressReporter(AbstractContextManager):
         return self
 
     def __exit__(
-        self,
-        exc_type: type[BaseException] | None,  # noqa
-        exc_value: BaseException | None,  # noqa
-        traceback: TracebackType | None,  # noqa
+            self,
+            exc_type: type[BaseException] | None,  # noqa
+            exc_value: BaseException | None,  # noqa
+            traceback: TracebackType | None,  # noqa
     ) -> bool | None:
         self.close_report()
 
@@ -105,6 +105,7 @@ class ProgressReporter(AbstractContextManager):
 
 
 def format_metrics(metrics: dict[str, float]) -> str:
+
     def format_value(value: float) -> str:
         if 1e-3 <= value <= 1e3:
             return f"{value:.4f}"

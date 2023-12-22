@@ -134,19 +134,16 @@ def test_report_epoch_progress(tqdm, capsys, epoch, verbose):
     elif verbose == 1:
         bar.set_description.assert_called_once_with(f"Epoch {epoch}/100 - Finished")
         bar.set_postfix_str.assert_called_once_with(
-            "f1=0.9000; loss=0.1000; val_f1=0.8900; val_loss=0.1100"
-        )
+            "f1=0.9000; loss=0.1000; val_f1=0.8900; val_loss=0.1100")
     elif verbose == 2:
         assert stdout_str == (
             f"Epoch {epoch}/100 - Finished: "
-            "f1=0.9000; loss=0.1000; val_f1=0.8900; val_loss=0.1100\n"
-        )
+            "f1=0.9000; loss=0.1000; val_f1=0.8900; val_loss=0.1100\n")
     elif verbose > 2:
         if epoch == 1 or epoch == 100 or (epoch % verbose == 0):
             assert stdout_str == (
                 f"Epoch {epoch}/100 - Finished: "
-                "f1=0.9000; loss=0.1000; val_f1=0.8900; val_loss=0.1100\n"
-            )
+                "f1=0.9000; loss=0.1000; val_f1=0.8900; val_loss=0.1100\n")
         else:
             assert stdout_str == ""
 
@@ -184,5 +181,4 @@ def test_format_metrics_normal_floats():
     }
     result = format_metrics(metrics)
     assert (
-        result == "v1=123.4568; v2=12.3457; v3=1.2346; v4=0.1235; v5=0.0123; v6=0.0012"
-    )
+        result == "v1=123.4568; v2=12.3457; v3=1.2346; v4=0.1235; v5=0.0123; v6=0.0012")
