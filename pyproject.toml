@@ -1,8 +1,9 @@
 [project]
+name = "torch-training-loop"
+description = "Simple Keras-inspired Training Loop for Pytorch."
 authors = [
     {name = "beekill", email = "nguyenmbquan95@gmail.com"},
 ]
-license = {text = "MIT"}
 requires-python = ">=3.8"
 dependencies = [
     "torch",
@@ -11,10 +12,15 @@ dependencies = [
     "numpy",
     "tqdm",
 ]
-name = "torch-training-loop"
-description = "Simple Keras-inspired Training Loop for Pytorch."
 readme = "README.md"
+license = {text = "MIT"}
 classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development",
