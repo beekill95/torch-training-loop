@@ -61,7 +61,7 @@ jobs:
     - name: Install dependencies
       if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
       run: |
-        pdm export --only main,dev > requirements.txt
+        pdm export -G dev > requirements.txt
         # Remove all nvidia dependencies & install torch-cpu version to reduce .venv folder size.
         if [ $OS_VAR = 'Linux' ]
         then
