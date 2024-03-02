@@ -31,10 +31,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
-      with:
-        python-version: ${{ matrix.python-version }}
     # TODO:
     # We could cache poetry installation, but I don't like
     # having to manually manage cache invalidation.
@@ -44,13 +40,18 @@ jobs:
     #   with:
     #     path: ~/.local  # the path depends on the OS
     #     key: poetry-${{ runner.os }}-py-${{ matrix.python-version }}-0  # increment to reset cache
-    - name: Install Poetry Action
-      # if: steps.cached-poetry.outputs.cache-hit != 'true'
-      uses: snok/install-poetry@v1.3.4
+    # - name: Install Poetry Action
+    #   # if: steps.cached-poetry.outputs.cache-hit != 'true'
+    #   uses: snok/install-poetry@v1.3.4
+    #   with:
+    #     version: 1.5.1
+    #     virtualenvs-create: true
+    #     virtualenvs-in-project: true
+    - name: Setup PDM
+      uses: pdm-project/setup-pdm@v4
       with:
-        version: 1.5.1
-        virtualenvs-create: true
-        virtualenvs-in-project: true
+        python-version: ${{ matrix.python-version }}
+        version: 2.12.2
     - name: Load cached venv
       id: cached-poetry-dependencies
       uses: actions/cache@v3
@@ -60,7 +61,8 @@ jobs:
     - name: Install dependencies
       if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
       run: |
-        poetry export -f requirements.txt --without-hashes --only main,dev -o requirements.txt
+        pdm export --only main,dev > requirements.txt
+        # Remove all nvidia dependencies & install torch-cpu version to reduce .venv folder size.
         if [ $OS_VAR = 'Linux' ]
         then
           mv requirements.txt requirements-temp.txt
@@ -73,7 +75,7 @@ jobs:
       env:
         OS_VAR: ${{ runner.os }}
     - name: Install project
-      run: poetry install --no-interaction --only-root
+      run: pdm run pip install .
     # - name: Lint with flake8
     #   run: |
     #     # stop the build if there are Python syntax errors or undefined names
@@ -85,6 +87,6 @@ jobs:
       with:
         shell: bash
         timeout_minutes: 5
-        command: poetry run pytest --reruns 5 --reruns-delay 1
-        new_command_on_retry: poetry run pytest --reruns 5 --reruns-delay 1 --last-failed
+        command: pdm run pytest --reruns 5 --reruns-delay 1
+        new_command_on_retry: pdm run pytest --reruns 5 --reruns-delay 1 --last-failed
         max_attempts: 5
