@@ -57,7 +57,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: .venv
-        key: venv-${{ runner.os }}-py-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+        key: venv-${{ runner.os }}-py-${{ matrix.python-version }}-${{ hashFiles('**/pdm.lock') }}
     - name: Install dependencies
       if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
       run: |
@@ -71,7 +71,7 @@ jobs:
             | sed '1s/^/--extra-index-url https:\/\/download.pytorch.org\/whl\/cpu\n/' > requirements.txt
         fi
 
-        python -m venv .venv && source $VENV && pip install -r requirements.txt
+        pdm run install -r requirements.txt
       env:
         OS_VAR: ${{ runner.os }}
     - name: Install project
