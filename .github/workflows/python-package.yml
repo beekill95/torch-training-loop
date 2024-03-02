@@ -71,7 +71,7 @@ jobs:
             | sed '1s/^/--extra-index-url https:\/\/download.pytorch.org\/whl\/cpu\n/' > requirements.txt
         fi
 
-        pdm run install -r requirements.txt
+        pdm run pip install -r requirements.txt
       env:
         OS_VAR: ${{ runner.os }}
     - name: Install project
