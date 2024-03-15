@@ -5,6 +5,7 @@
 * Implement `StateSerializable` interface for training loops and training steps to support training loop checkpoint.
 * Implement evaluation loop.
 * Support mixed-precision training.
+* Improve logging.
 
 ## [v0.1.3](https://github.com/beekill95/torch-training-loop/releases/tag/v0.1.3) - 2023-12-22
 
