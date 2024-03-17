@@ -4,6 +4,8 @@ import logging
 from functools import wraps
 from itertools import chain
 from typing import Generic
+from typing import Self
+from typing import TypedDict
 
 import numpy as np
 import pandas as pd
@@ -17,7 +19,9 @@ from ..exceptions import StopTraining
 from ..progress_reporter import ProgressReporter
 from ..types import TData
 from ..types import TDevice
+from ..types import TStateDict
 from .distributed_training_step import DistributedTrainingStep
+from .state_serializable import StateSerializable
 from .utils import hasfunc
 from .utils import prefix_val_metrics_keys
 from .utils import TRAIN_DATALOADER_SEPARATOR
@@ -40,7 +44,16 @@ def _execute_on_main_process(func):
     return on_main_process_only
 
 
-class DistributedTrainingLoop(Generic[TData]):
+class DistributedTrainingLoopStateDict(TypedDict):
+    model: dict
+    epoch: int
+    step: TStateDict | None = None
+
+
+class DistributedTrainingLoop(
+    Generic[TData],
+    StateSerializable[DistributedTrainingLoopStateDict],
+):
     """
     Distributed training loop that supports training distributed data parallel on
     single-node multigpus machine.
@@ -62,6 +75,7 @@ class DistributedTrainingLoop(Generic[TData]):
         self._step = step
         self._rank = rank
         self._device = device
+        self._epoch = 1
 
     @property
     def device(self):
@@ -151,7 +165,9 @@ class DistributedTrainingLoop(Generic[TData]):
         except TypeError:
             total_batches = float("inf")
 
-        for epoch in range(1, epochs + 1):
+        for epoch in range(self._epoch, epochs + 1):
+            self._epoch = epoch
+
             # Ensure that `set_epoch` function of dataloaders are called
             # to make shuffling data of each process is correct.
             if hasfunc(train_dataloader.sampler, "set_epoch"):
@@ -193,12 +209,16 @@ class DistributedTrainingLoop(Generic[TData]):
 
                     if is_training:
                         logs = step.train_step_distributed(
-                            model=self._model, data=data, device=self._device
+                            model=self._model,
+                            data=data,
+                            device=self._device,
                         )
                     else:
                         with torch.no_grad():
                             logs = step.val_step_distributed(
-                                model=self._model, data=data, device=self._device
+                                model=self._model,
+                                data=data,
+                                device=self._device,
                             )
                             logs = prefix_val_metrics_keys(logs, _VAL_METRICS_PREFIX)
 
@@ -213,7 +233,8 @@ class DistributedTrainingLoop(Generic[TData]):
                         logs = self._sync_and_avg_metrics(logs)
 
                     reporter.report_batch_progress(
-                        "Training" if is_training else "Validating", logs
+                        "Training" if is_training else "Validating",
+                        logs,
                     )
 
                     if self._is_main_process:
@@ -241,7 +262,8 @@ class DistributedTrainingLoop(Generic[TData]):
                 logs = {
                     **step.compute_train_metrics_synced(),
                     **prefix_val_metrics_keys(
-                        step.compute_val_metrics_synced(), _VAL_METRICS_PREFIX
+                        step.compute_val_metrics_synced(),
+                        _VAL_METRICS_PREFIX,
                     ),
                 }
 
@@ -307,6 +329,23 @@ class DistributedTrainingLoop(Generic[TData]):
             if self._is_main_process
             else None
         )
+
+    def state_dict(self) -> DistributedTrainingLoopStateDict:
+        step = self._step
+        return {
+            "model": self._model.state_dict(),
+            "epoch": self._epoch,
+            "step": step.state_dict() if isinstance(step, StateSerializable) else None,
+        }
+
+    def load_state_dict(self, state_dict: DistributedTrainingLoopStateDict) -> Self:
+        self._epoch = state_dict["epoch"]
+        self._model.load_state_dict(state_dict["model"])
+
+        if state_dict["step"] is not None and isinstance(self._step, StateSerializable):
+            self._step = self._step.load_state_dict(state_dict["step"])
+
+        return self
 
     @property
     def _is_main_process(self):
