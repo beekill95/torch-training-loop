@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from collections import ChainMap
-from typing import Callable
+from typing import Callable, Self
 from typing import Dict
 from typing import Iterator
 from typing import List
 from typing import Sequence
+from typing import TypedDict
 from typing import Tuple
 from typing import TYPE_CHECKING
 from typing import Union
@@ -20,6 +21,7 @@ from torcheval.metrics.toolkit import sync_and_compute_collection
 
 from ..types import TDevice
 from .distributed_training_step import DistributedTrainingStep
+from .state_serializable import StateSerializable
 from .training_step import TrainingStep
 
 if TYPE_CHECKING:
@@ -65,9 +67,18 @@ TSimpleData = Union[
 ]
 
 
+class SimpleTrainingStepStateDict(TypedDict):
+    optim: dict | None
+    train_loss: dict | None
+    train_metrics: dict[str, dict] | None
+    val_loss: dict | None
+    val_metrics: dict[str, dict] | None
+
+
 class SimpleTrainingStep(
     TrainingStep[nn.Module, TSimpleData],
     DistributedTrainingStep[TSimpleData],
+    StateSerializable[SimpleTrainingStepStateDict],
 ):
     """
     A simple training step that implements both the base TrainingStep
@@ -315,6 +326,46 @@ class SimpleTrainingStep(
     def compute_val_metrics_synced(self):
         return compute_metrics_synced(self._val_loss, self._val_metrics)
 
+    def state_dict(self) -> SimpleTrainingStepStateDict:
+        try:
+            optim = self._optim.state_dict()
+        except AttributeError:
+            optim = None
+
+        try:
+            train_loss = self._train_loss.state_dict()
+        except AttributeError:
+            train_loss = None
+
+        try:
+            # TODO
+            train_metrics = []
+        except AttributeError:
+            train_metrics = None
+
+        try:
+            val_loss = self._val_loss.state_dict()
+        except AttributeError:
+            val_loss = None
+
+        try:
+            # TODO
+            val_metrics = []
+        except AttributeError:
+            val_metrics = None
+
+        return {
+            "optim": optim,
+            "train_loss": train_loss,
+            "train_metrics": train_metrics,
+            "val_loss": val_loss,
+            "val_metrics": val_metrics,
+        }
+
+    def load_state_dict(self, state_dict: SimpleTrainingStepStateDict) -> Self:
+        # TODO
+        return self
+
     def _transfer_to_device(self, data: TSimpleData, device: TDevice) -> TSimpleData:
         X = transfer_data(data[0], device)
         y = transfer_data(data[1], device)
@@ -509,9 +560,9 @@ def calc_loss(
                 loss_fns[key],
                 y_pred=y_pred[key],
                 y_true=y_true[key],
-                sample_weights=(
-                    sample_weights[key] if sample_weights is not None else None
-                ),
+                sample_weights=sample_weights[key]
+                if sample_weights is not None
+                else None,
                 loss_weights=loss_weights[key] if loss_weights is not None else None,
             )
             for key in loss_fns.keys()
@@ -646,7 +697,6 @@ def update_metrics(
 
 
 def compute_metrics(metrics: TMetrics) -> dict[str, float]:
-
     def compute(metric: Metric[torch.Tensor]):
         return metric.compute().detach().cpu().item()
 
@@ -668,7 +718,6 @@ def compute_metrics(metrics: TMetrics) -> dict[str, float]:
 
 
 def compute_metrics_synced(loss: Metric, metrics: TMetrics) -> dict[str, float]:
-
     def to_dict(metrics: TMetrics) -> dict[str, Metric]:
         if isinstance(metrics, list):
             return {name: metric for name, metric in metrics}
