@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from itertools import chain
 from typing import Generic
+from typing import Self
+from typing import TypedDict
 
 import pandas as pd
 import torch
@@ -14,23 +16,31 @@ from ..progress_reporter import ProgressReporter
 from ..types import TData
 from ..types import TDevice
 from ..types import TModel
+from ..types import TStateDict
+from .state_serializable import StateSerializable
 from .training_step import TrainingStep
 from .utils import prefix_val_metrics_keys
 from .utils import TRAIN_DATALOADER_SEPARATOR
 from .utils import train_dataloader_separator
 
-_LOGGER = logging.getLogger('TrainingLoop')
-_VAL_METRICS_PREFIX = 'val_'
+_LOGGER = logging.getLogger("TrainingLoop")
+_VAL_METRICS_PREFIX = "val_"
 
 
-class TrainingLoop(Generic[TModel, TData]):
+class TrainingLoopStateDict(TypedDict):
+    model: dict
+    epoch: int
+    step: TStateDict | None = None
+
+
+class TrainingLoop(Generic[TModel, TData], StateSerializable[TrainingLoopStateDict]):
 
     def __init__(
         self,
         model: TModel,
         step: TrainingStep[TModel, TData],
         *,
-        device: TDevice = 'cpu',
+        device: TDevice = "cpu",
     ) -> None:
         """
         Base class for a training loop.
@@ -40,6 +50,7 @@ class TrainingLoop(Generic[TModel, TData]):
         self._model = model.to(device)
         self._device = device
         self._step = step
+        self._epoch = 1
 
     @property
     def device(self):
@@ -105,16 +116,18 @@ class TrainingLoop(Generic[TModel, TData]):
 
         step.init(model, device)
         self._init_callbacks(callbacks)
-        self._handle(callbacks, 'training_begin')
+        self._handle(callbacks, "training_begin")
 
         try:
             total_batches = len(train_dataloader) + len(val_dataloader)
         except TypeError:
-            total_batches = float('inf')
+            total_batches = float("inf")
 
-        for epoch in range(1, epochs + 1):
+        for epoch in range(self._epoch, epochs + 1):
+            self._epoch = epoch
+
             # Epoch Start.
-            self._handle(callbacks, 'epoch_begin', epoch=epoch)
+            self._handle(callbacks, "epoch_begin", epoch=epoch)
             step.reset_train_metrics()
             step.reset_val_metrics()
 
@@ -143,8 +156,9 @@ class TrainingLoop(Generic[TModel, TData]):
 
                     self._handle(
                         callbacks,
-                        'train_batch_begin' if is_training else 'val_batch_begin',
-                        batch=batch)
+                        "train_batch_begin" if is_training else "val_batch_begin",
+                        batch=batch,
+                    )
 
                     if is_training:
                         logs = step.train_step(model, data, device)
@@ -155,26 +169,29 @@ class TrainingLoop(Generic[TModel, TData]):
 
                     self._handle(
                         callbacks,
-                        'train_batch_end' if is_training else 'val_batch_end',
+                        "train_batch_end" if is_training else "val_batch_end",
                         batch=batch,
-                        logs=logs)
+                        logs=logs,
+                    )
 
                     # Display progress.
                     reporter.report_batch_progress(
-                        'Training' if is_training else 'Validating', logs)
+                        "Training" if is_training else "Validating",
+                        logs,
+                    )
 
                     # Record progress history.
                     if is_training:
                         train_history.append({
                             **logs,
-                            'batch': batch,
-                            'epoch': epoch,
+                            "batch": batch,
+                            "epoch": epoch,
                         })
                     else:
                         val_history.append({
                             **logs,
-                            'val_batch': batch,
-                            'val_epoch': epoch,
+                            "val_batch": batch,
+                            "val_epoch": epoch,
                         })
 
                     # Batch End.
@@ -182,19 +199,21 @@ class TrainingLoop(Generic[TModel, TData]):
                 # Gather training and validation logs when an epoch ends.
                 logs = {
                     **step.compute_train_metrics(),
-                    **prefix_val_metrics_keys(step.compute_val_metrics(),
-                                              _VAL_METRICS_PREFIX),
+                    **prefix_val_metrics_keys(
+                        step.compute_val_metrics(),
+                        _VAL_METRICS_PREFIX,
+                    ),
                 }
 
                 stop_training = self._handle(
                     callbacks,
-                    'epoch_end',
+                    "epoch_end",
                     epoch=epoch,
                     logs=logs,
                 )
 
                 # Update progress bar.
-                reporter.report_epoch_progress('Finished', logs)
+                reporter.report_epoch_progress("Finished", logs)
 
                 # Record history.
                 train_history.append({
@@ -203,8 +222,8 @@ class TrainingLoop(Generic[TModel, TData]):
                         for k, v in logs.items()
                         if not k.startswith(_VAL_METRICS_PREFIX)
                     },
-                    'epoch': epoch,
-                    'batch': -1,
+                    "epoch": epoch,
+                    "batch": -1,
                 })
                 val_history.append({
                     **{
@@ -212,27 +231,48 @@ class TrainingLoop(Generic[TModel, TData]):
                         for k, v in logs.items()
                         if k.startswith(_VAL_METRICS_PREFIX)
                     },
-                    'val_epoch': epoch,
-                    'val_batch': -1,
+                    "val_epoch": epoch,
+                    "val_batch": -1,
                 })
 
                 # Stop training if a signal was raised.
                 if stop_training:
                     _LOGGER.info(
-                        f'Stop training at epoch {epoch} due `StopTraining` raised.')
+                        f"Stop training at epoch {epoch} due `StopTraining` raised.")
                     break
 
                 # Epoch End.
 
-        self._handle(callbacks, 'training_end')
+        self._handle(callbacks, "training_end")
 
-        return (pd.DataFrame(train_history).set_index(
-            ['epoch', 'batch'],
-            drop=False,
-        ), pd.DataFrame(val_history).set_index(
-            ['val_epoch', 'val_batch'],
-            drop=False,
-        ))
+        return (
+            pd.DataFrame(train_history).set_index(
+                ["epoch", "batch"],
+                drop=False,
+            ),
+            pd.DataFrame(val_history).set_index(
+                ["val_epoch", "val_batch"],
+                drop=False,
+            ),
+        )
+
+    def state_dict(self) -> TrainingLoopStateDict:
+        step = self._step
+
+        return {
+            "model": self._model.state_dict(),
+            "epoch": self._epoch,
+            "step": step.state_dict() if isinstance(step, StateSerializable) else None,
+        }
+
+    def load_state_dict(self, state_dict: TrainingLoopStateDict) -> Self:
+        self._model.load_state_dict(state_dict["model"])
+        self._epoch = state_dict["epoch"]
+
+        if isinstance(self._step, StateSerializable) and state_dict["step"] is not None:
+            self._step = self._step.load_state_dict(state_dict["step"])
+
+        return self
 
     def _init_callbacks(self, callbacks: list[Callback[TModel]]):
         for callback in callbacks:
