@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from itertools import chain
 from typing import Generic
+from typing import Self
+from typing import TypedDict
 
 import pandas as pd
 import torch
@@ -14,6 +16,8 @@ from ..progress_reporter import ProgressReporter
 from ..types import TData
 from ..types import TDevice
 from ..types import TModel
+from ..types import TStateDict
+from .state_serializable import StateSerializable
 from .training_step import TrainingStep
 from .utils import prefix_val_metrics_keys
 from .utils import TRAIN_DATALOADER_SEPARATOR
@@ -23,8 +27,13 @@ _LOGGER = logging.getLogger("TrainingLoop")
 _VAL_METRICS_PREFIX = "val_"
 
 
-class TrainingLoop(Generic[TModel, TData]):
+class TrainingLoopStateDict(TypedDict):
+    model: dict
+    epoch: int
+    step: TStateDict | None = None
 
+
+class TrainingLoop(Generic[TModel, TData], StateSerializable[TrainingLoopStateDict]):
     def __init__(
         self,
         model: TModel,
@@ -40,6 +49,7 @@ class TrainingLoop(Generic[TModel, TData]):
         self._model = model.to(device)
         self._device = device
         self._step = step
+        self._epoch = 1
 
     @property
     def device(self):
@@ -111,8 +121,9 @@ class TrainingLoop(Generic[TModel, TData]):
             total_batches = len(train_dataloader) + len(val_dataloader)
         except TypeError:
             total_batches = float("inf")
+        for epoch in range(self._epoch, epochs + 1):
+            self._epoch = epoch
 
-        for epoch in range(1, epochs + 1):
             # Epoch Start.
             self._handle(callbacks, "epoch_begin", epoch=epoch)
             step.reset_train_metrics()
@@ -163,7 +174,8 @@ class TrainingLoop(Generic[TModel, TData]):
 
                     # Display progress.
                     reporter.report_batch_progress(
-                        "Training" if is_training else "Validating", logs
+                        "Training" if is_training else "Validating",
+                        logs,
                     )
 
                     # Record progress history.
@@ -190,7 +202,8 @@ class TrainingLoop(Generic[TModel, TData]):
                 logs = {
                     **step.compute_train_metrics(),
                     **prefix_val_metrics_keys(
-                        step.compute_val_metrics(), _VAL_METRICS_PREFIX
+                        step.compute_val_metrics(),
+                        _VAL_METRICS_PREFIX,
                     ),
                 }
 
@@ -249,6 +262,24 @@ class TrainingLoop(Generic[TModel, TData]):
                 drop=False,
             ),
         )
+
+    def state_dict(self) -> TrainingLoopStateDict:
+        step = self._step
+
+        return {
+            "model": self._model.state_dict(),
+            "epoch": self._epoch,
+            "step": step.state_dict() if isinstance(step, StateSerializable) else None,
+        }
+
+    def load_state_dict(self, state_dict: TrainingLoopStateDict) -> Self:
+        self._model.load_state_dict(state_dict["model"])
+        self._epoch = state_dict["epoch"]
+
+        if isinstance(self._step, StateSerializable) and state_dict["step"] is not None:
+            self._step = self._step.load_state_dict(state_dict["step"])
+
+        return self
 
     def _init_callbacks(self, callbacks: list[Callback[TModel]]):
         for callback in callbacks:
