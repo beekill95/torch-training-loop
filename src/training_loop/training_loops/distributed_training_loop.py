@@ -23,8 +23,8 @@ from .utils import prefix_val_metrics_keys
 from .utils import TRAIN_DATALOADER_SEPARATOR
 from .utils import train_dataloader_separator
 
-_LOGGER = logging.getLogger('DistributedTrainingLoop')
-_VAL_METRICS_PREFIX = 'val_'
+_LOGGER = logging.getLogger("DistributedTrainingLoop")
+_VAL_METRICS_PREFIX = "val_"
 
 
 def _execute_on_main_process(func):
@@ -50,8 +50,14 @@ class DistributedTrainingLoop(Generic[TData]):
     # and where stop training signal is broadcasted from.
     _MAIN_PROCESS = 0
 
-    def __init__(self, model: DDP, step: DistributedTrainingStep[TData], *, rank: int,
-                 device: TDevice) -> None:
+    def __init__(
+        self,
+        model: DDP,
+        step: DistributedTrainingStep[TData],
+        *,
+        rank: int,
+        device: TDevice,
+    ) -> None:
         self._model = model
         self._step = step
         self._rank = rank
@@ -138,24 +144,24 @@ class DistributedTrainingLoop(Generic[TData]):
         # Training Start.
         step.init_distributed(model, device)
         self._init_callbacks(callbacks)
-        self._handle(callbacks, 'training_begin')
+        self._handle(callbacks, "training_begin")
 
         try:
             total_batches = len(train_dataloader) + len(val_dataloader)
         except TypeError:
-            total_batches = float('inf')
+            total_batches = float("inf")
 
         for epoch in range(1, epochs + 1):
             # Ensure that `set_epoch` function of dataloaders are called
             # to make shuffling data of each process is correct.
-            if hasfunc(train_dataloader.sampler, 'set_epoch'):
+            if hasfunc(train_dataloader.sampler, "set_epoch"):
                 train_dataloader.sampler.set_epoch(epoch)
 
-            if hasfunc(val_dataloader.sampler, 'set_epoch'):
+            if hasfunc(val_dataloader.sampler, "set_epoch"):
                 val_dataloader.sampler.set_epoch(epoch)
 
             # Epoch Start.
-            self._handle(callbacks, 'epoch_begin', epoch=epoch)
+            self._handle(callbacks, "epoch_begin", epoch=epoch)
             step.reset_train_metrics_distributed()
             step.reset_val_metrics_distributed()
 
@@ -166,10 +172,10 @@ class DistributedTrainingLoop(Generic[TData]):
             )
 
             with ProgressReporter(
-                    epoch,
-                    total_epochs=epochs,
-                    total_batches=total_batches,
-                    verbose=verbose if self._is_main_process else 0,
+                epoch,
+                total_epochs=epochs,
+                total_batches=total_batches,
+                verbose=verbose if self._is_main_process else 0,
             ) as reporter:
                 is_training = True
                 for batch, data in dataloader:
@@ -181,104 +187,126 @@ class DistributedTrainingLoop(Generic[TData]):
 
                     self._handle(
                         callbacks,
-                        'train_batch_begin' if is_training else 'val_batch_begin',
-                        batch=batch)
+                        "train_batch_begin" if is_training else "val_batch_begin",
+                        batch=batch,
+                    )
 
                     if is_training:
                         logs = step.train_step_distributed(
-                            model=self._model, data=data, device=self._device)
+                            model=self._model, data=data, device=self._device
+                        )
                     else:
                         with torch.no_grad():
                             logs = step.val_step_distributed(
-                                model=self._model, data=data, device=self._device)
+                                model=self._model, data=data, device=self._device
+                            )
                             logs = prefix_val_metrics_keys(logs, _VAL_METRICS_PREFIX)
 
                     self._handle(
                         callbacks,
-                        'train_batch_end' if is_training else 'val_batch_end',
+                        "train_batch_end" if is_training else "val_batch_end",
                         batch=batch,
-                        logs=logs)
+                        logs=logs,
+                    )
 
                     if average_metrics_after_batch_end:
                         logs = self._sync_and_avg_metrics(logs)
 
                     reporter.report_batch_progress(
-                        'Training' if is_training else 'Validating', logs)
+                        "Training" if is_training else "Validating", logs
+                    )
 
                     if self._is_main_process:
                         # Record progress history.
                         if is_training:
-                            train_history.append({
-                                **logs,
-                                'batch': batch,
-                                'epoch': epoch,
-                            })
+                            train_history.append(
+                                {
+                                    **logs,
+                                    "batch": batch,
+                                    "epoch": epoch,
+                                }
+                            )
                         else:
-                            val_history.append({
-                                **logs,
-                                'val_batch': batch,
-                                'val_epoch': epoch,
-                            })
+                            val_history.append(
+                                {
+                                    **logs,
+                                    "val_batch": batch,
+                                    "val_epoch": epoch,
+                                }
+                            )
 
                         # Batch End.
 
                 # Gather training and validation logs when an epoch ends.
                 logs = {
                     **step.compute_train_metrics_synced(),
-                    **prefix_val_metrics_keys(step.compute_val_metrics_synced(),
-                                              _VAL_METRICS_PREFIX),
+                    **prefix_val_metrics_keys(
+                        step.compute_val_metrics_synced(), _VAL_METRICS_PREFIX
+                    ),
                 }
 
                 stop_training = self._handle(
                     callbacks,
-                    'epoch_end',
+                    "epoch_end",
                     epoch=epoch,
                     logs=logs,
                 )
                 stop_training = self._broadcast_stop_training(stop_training)
 
-                reporter.report_epoch_progress('Finished', logs)
+                reporter.report_epoch_progress("Finished", logs)
 
             # Record history.
             if self._is_main_process:
-                train_history.append({
-                    **{
-                        k: v
-                        for k, v in logs.items()
-                        if not k.startswith(_VAL_METRICS_PREFIX)
-                    },
-                    'epoch': epoch,
-                    'batch': -1,
-                })
-                val_history.append({
-                    **{
-                        k: v
-                        for k, v in logs.items()
-                        if k.startswith(_VAL_METRICS_PREFIX)
-                    },
-                    'val_epoch': epoch,
-                    'val_batch': -1,
-                })
+                train_history.append(
+                    {
+                        **{
+                            k: v
+                            for k, v in logs.items()
+                            if not k.startswith(_VAL_METRICS_PREFIX)
+                        },
+                        "epoch": epoch,
+                        "batch": -1,
+                    }
+                )
+                val_history.append(
+                    {
+                        **{
+                            k: v
+                            for k, v in logs.items()
+                            if k.startswith(_VAL_METRICS_PREFIX)
+                        },
+                        "val_epoch": epoch,
+                        "val_batch": -1,
+                    }
+                )
 
             # Stop training if signal was raised.
             if stop_training:
                 _LOGGER.info(
-                    f'Stop training at epoch {epoch} on process {self._device} '
-                    'due to `StopTraining` raised.')
+                    f"Stop training at epoch {epoch} on process {self._device} "
+                    "due to `StopTraining` raised."
+                )
                 break
 
             # Epoch End.
 
         # Training End.
-        self._handle(callbacks, 'training_end')
+        self._handle(callbacks, "training_end")
 
-        return (pd.DataFrame(train_history).set_index(
-            ['epoch', 'batch'],
-            drop=False,
-        ), pd.DataFrame(val_history).set_index(
-            ['val_epoch', 'val_batch'],
-            drop=False,
-        )) if self._is_main_process else None
+        return (
+            (
+                pd.DataFrame(train_history).set_index(
+                    ["epoch", "batch"],
+                    drop=False,
+                ),
+                pd.DataFrame(val_history).set_index(
+                    ["val_epoch", "val_batch"],
+                    drop=False,
+                ),
+            )
+            if self._is_main_process
+            else None
+        )
 
     @property
     def _is_main_process(self):

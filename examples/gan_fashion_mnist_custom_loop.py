@@ -36,21 +36,23 @@ from training_loop import TrainingStep
 
 # %%
 # Transform the images to range (-1, 1).
-transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize((0.5,), (0.5,)),
-])
+transform = transforms.Compose(
+    [
+        transforms.ToTensor(),
+        transforms.Normalize((0.5,), (0.5,)),
+    ]
+)
 
 # Create datasets for training & validation, download if necessary
 MNIST = torchvision.datasets.FashionMNIST
 training_set = MNIST(
-    './data',
+    "./data",
     train=True,
     transform=transform,
     download=True,
 )
 validation_set = MNIST(
-    './data',
+    "./data",
     train=False,
     transform=transform,
     download=True,
@@ -72,35 +74,41 @@ validation_loader = torch.utils.data.DataLoader(
 
 # Class labels
 classes = (
-    'T-shirt/top',
-    'Trouser',
-    'Pullover',
-    'Dress',
-    'Coat',
-    'Sandal',
-    'Shirt',
-    'Sneaker',
-    'Bag',
-    'Ankle Boot',
+    "T-shirt/top",
+    "Trouser",
+    "Pullover",
+    "Dress",
+    "Coat",
+    "Sandal",
+    "Shirt",
+    "Sneaker",
+    "Bag",
+    "Ankle Boot",
 )
 
 # Report split sizes
-print(f'Training set has {len(training_set)} instances')
-print(f'Validation set has {len(validation_set)} instances')
+print(f"Training set has {len(training_set)} instances")
+print(f"Validation set has {len(validation_set)} instances")
 
 # %% [markdown]
 # ## GAN Models: Generator and Discriminator
 #
 
 # %%
-GeneratorInput = TypedDict('GeneratorInput', {
-    'signal': torch.Tensor,
-    'class': torch.Tensor,
-})
-DiscriminatorInput = TypedDict('DiscriminatorInput', {
-    'image': torch.Tensor,
-    'class': torch.Tensor,
-})
+GeneratorInput = TypedDict(
+    "GeneratorInput",
+    {
+        "signal": torch.Tensor,
+        "class": torch.Tensor,
+    },
+)
+DiscriminatorInput = TypedDict(
+    "DiscriminatorInput",
+    {
+        "image": torch.Tensor,
+        "class": torch.Tensor,
+    },
+)
 
 
 class GarmentGenerator(nn.Module):
@@ -121,7 +129,7 @@ class GarmentGenerator(nn.Module):
         self.unflatten = nn.Unflatten(dim=1, unflattened_size=(1, 28, 28))
 
     def forward(self, input: GeneratorInput):
-        signal, clazz = input['signal'], input['class']
+        signal, clazz = input["signal"], input["class"]
         x = torch.cat([signal, clazz], dim=-1)
         x = self.hidden(x)
         x = self.output(x)
@@ -143,10 +151,12 @@ class GarmentDiscriminator(nn.Module):
             nn.Linear(200, 100),
             nn.ReLU(),
         )
-        self.output = nn.Sequential(nn.Linear(100, 1),)
+        self.output = nn.Sequential(
+            nn.Linear(100, 1),
+        )
 
     def forward(self, input: DiscriminatorInput):
-        image, clazz = self.flatten(input['image']), input['class']
+        image, clazz = self.flatten(input["image"]), input["class"]
         x = torch.concat((image, clazz), dim=-1)
         x = self.hidden(x)
         x = self.output(x)
@@ -164,14 +174,14 @@ class GarmentConditionalGAN(nn.Module):
     def forward(
         self,
         input: GeneratorInput | DiscriminatorInput,
-        network: Literal['generator', 'discriminator'] = 'generator',
+        network: Literal["generator", "discriminator"] = "generator",
     ):
-        if network == 'generator':
+        if network == "generator":
             return self.generator(input)
-        elif network == 'discriminator':
+        elif network == "discriminator":
             return self.discriminator(input)
 
-        raise ValueError(f'Unknown network={network}!')
+        raise ValueError(f"Unknown network={network}!")
 
 
 # %% [markdown]
@@ -180,9 +190,9 @@ class GarmentConditionalGAN(nn.Module):
 
 
 # %%
-class GarmentConditionalGANTrainingStep(TrainingStep[GarmentConditionalGAN,
-                                                     Tuple[torch.Tensor,
-                                                           torch.Tensor]]):
+class GarmentConditionalGANTrainingStep(
+    TrainingStep[GarmentConditionalGAN, Tuple[torch.Tensor, torch.Tensor]]
+):
 
     def __init__(
         self,
@@ -200,14 +210,14 @@ class GarmentConditionalGANTrainingStep(TrainingStep[GarmentConditionalGAN,
         # Train metrics and losses.
         self.generator_train_loss = Mean(device=device)
         self.discriminator_train_loss = Mean(device=device)
-        self.generator_train_skill = BinaryAccuracy(threshold=0., device=device)
-        self.discriminator_train_accuracy = BinaryAccuracy(threshold=0., device=device)
+        self.generator_train_skill = BinaryAccuracy(threshold=0.0, device=device)
+        self.discriminator_train_accuracy = BinaryAccuracy(threshold=0.0, device=device)
 
         # Validation metrics and losses.
         self.generator_val_loss = Mean(device=device)
         self.discriminator_val_loss = Mean(device=device)
-        self.generator_val_skill = BinaryAccuracy(threshold=0., device=device)
-        self.discriminator_val_accuracy = BinaryAccuracy(threshold=0., device=device)
+        self.generator_val_skill = BinaryAccuracy(threshold=0.0, device=device)
+        self.discriminator_val_accuracy = BinaryAccuracy(threshold=0.0, device=device)
 
     def train_step(
         self,
@@ -227,7 +237,8 @@ class GarmentConditionalGANTrainingStep(TrainingStep[GarmentConditionalGAN,
             fake_images,
             discriminator_output,
         ) = self._generator_forward(
-            model=model, images=images, labels=labels, device=device)
+            model=model, images=images, labels=labels, device=device
+        )
 
         # Train the generator.
         self.generator_optim.zero_grad()
@@ -237,8 +248,9 @@ class GarmentConditionalGANTrainingStep(TrainingStep[GarmentConditionalGAN,
         # Update the generator accuracy.
         with torch.no_grad():
             discriminator_output = discriminator_output.squeeze()
-            self.generator_train_skill.update(discriminator_output,
-                                              torch.ones_like(discriminator_output))
+            self.generator_train_skill.update(
+                discriminator_output, torch.ones_like(discriminator_output)
+            )
 
         # Next, perform the forward pass on the discriminator to
         # the discriminator's loss.
@@ -252,7 +264,8 @@ class GarmentConditionalGANTrainingStep(TrainingStep[GarmentConditionalGAN,
             labels=labels,
             fake_images=fake_images.detach(),
             fake_labels=labels,
-            device=device)
+            device=device,
+        )
 
         # Train the discriminator.
         self.discriminator_optim.zero_grad()
@@ -263,15 +276,19 @@ class GarmentConditionalGANTrainingStep(TrainingStep[GarmentConditionalGAN,
         with torch.no_grad():
             self.generator_train_loss.update(generator_loss)
             self.discriminator_train_loss.update(discriminator_loss)
-            self.discriminator_train_accuracy.update(discriminator_output.squeeze(),
-                                                     discriminator_target.squeeze())
+            self.discriminator_train_accuracy.update(
+                discriminator_output.squeeze(), discriminator_target.squeeze()
+            )
 
         return self.compute_train_metrics()
 
     @torch.no_grad()
-    def val_step(self, model: GarmentConditionalGAN, data: tuple[torch.Tensor,
-                                                                 torch.Tensor],
-                 device: torch.device | str) -> dict[str, float]:
+    def val_step(
+        self,
+        model: GarmentConditionalGAN,
+        data: tuple[torch.Tensor, torch.Tensor],
+        device: torch.device | str,
+    ) -> dict[str, float]:
         model = model.eval()
         images, labels = data
         images = images.to(device)
@@ -284,12 +301,14 @@ class GarmentConditionalGANTrainingStep(TrainingStep[GarmentConditionalGAN,
             fake_images,
             discriminator_output,
         ) = self._generator_forward(
-            model=model, images=images, labels=labels, device=device)
+            model=model, images=images, labels=labels, device=device
+        )
 
         # Update the generator accuracy.
         discriminator_output = discriminator_output.squeeze()
-        self.generator_val_skill.update(discriminator_output,
-                                        torch.ones_like(discriminator_output))
+        self.generator_val_skill.update(
+            discriminator_output, torch.ones_like(discriminator_output)
+        )
 
         # Next, perform the forward pass on the discriminator to
         # the discriminator's loss.
@@ -303,13 +322,15 @@ class GarmentConditionalGANTrainingStep(TrainingStep[GarmentConditionalGAN,
             labels=labels,
             fake_images=fake_images.detach(),
             fake_labels=labels,
-            device=device)
+            device=device,
+        )
 
         # Update the losses.
         self.generator_val_loss.update(generator_loss)
         self.discriminator_val_loss.update(discriminator_loss)
-        self.discriminator_val_accuracy.update(discriminator_output.squeeze(),
-                                               discriminator_target.squeeze())
+        self.discriminator_val_accuracy.update(
+            discriminator_output.squeeze(), discriminator_target.squeeze()
+        )
 
         return self.compute_val_metrics()
 
@@ -328,23 +349,21 @@ class GarmentConditionalGANTrainingStep(TrainingStep[GarmentConditionalGAN,
     @torch.no_grad()
     def compute_train_metrics(self) -> dict[str, float]:
         return {
-            'generator_loss':
-                self.generator_train_loss.compute().cpu().item(),
-            'discriminator_loss':
-                self.discriminator_train_loss.compute().cpu().item(),
-            'generator_skill':
-                self.generator_train_skill.compute().cpu().item(),
-            'discriminator_acc':
-                self.discriminator_train_accuracy.compute().cpu().item(),
+            "generator_loss": self.generator_train_loss.compute().cpu().item(),
+            "discriminator_loss": self.discriminator_train_loss.compute().cpu().item(),
+            "generator_skill": self.generator_train_skill.compute().cpu().item(),
+            "discriminator_acc": self.discriminator_train_accuracy.compute()
+            .cpu()
+            .item(),
         }
 
     @torch.no_grad()
     def compute_val_metrics(self) -> dict[str, float]:
         return {
-            'generator_loss': self.generator_val_loss.compute().cpu().item(),
-            'discriminator_loss': self.discriminator_val_loss.compute().cpu().item(),
-            'generator_skill': self.generator_val_skill.compute().cpu().item(),
-            'discriminator_acc': self.discriminator_val_accuracy.compute().cpu().item(),
+            "generator_loss": self.generator_val_loss.compute().cpu().item(),
+            "discriminator_loss": self.discriminator_val_loss.compute().cpu().item(),
+            "generator_skill": self.generator_val_skill.compute().cpu().item(),
+            "discriminator_acc": self.discriminator_val_accuracy.compute().cpu().item(),
         }
 
     def _generator_forward(
@@ -358,25 +377,26 @@ class GarmentConditionalGANTrainingStep(TrainingStep[GarmentConditionalGAN,
         batch_size = images.shape[0]
 
         # First, generate random signal to feed into the generator.
-        signal = torch.randn((batch_size, self.signal_length),
-                             dtype=images.dtype,
-                             device=device)
-        generator_input: GeneratorInput = {'signal': signal, 'class': labels}
+        signal = torch.randn(
+            (batch_size, self.signal_length), dtype=images.dtype, device=device
+        )
+        generator_input: GeneratorInput = {"signal": signal, "class": labels}
 
         # Generate fake images from the generator.
-        fake_images = model(generator_input, network='generator')
+        fake_images = model(generator_input, network="generator")
 
         # Feed these fake images into the discriminator.
         discriminator_input: DiscriminatorInput = {
-            'image': fake_images,
-            'class': labels,
+            "image": fake_images,
+            "class": labels,
         }
-        discriminator_output = model(discriminator_input, network='discriminator')
+        discriminator_output = model(discriminator_input, network="discriminator")
 
         # Calculate the generator loss.
         misleading_target = torch.ones_like(discriminator_output)
-        generator_loss = F.binary_cross_entropy_with_logits(discriminator_output,
-                                                            misleading_target)
+        generator_loss = F.binary_cross_entropy_with_logits(
+            discriminator_output, misleading_target
+        )
 
         return generator_loss, fake_images, discriminator_output
 
@@ -394,24 +414,26 @@ class GarmentConditionalGANTrainingStep(TrainingStep[GarmentConditionalGAN,
         nb_fake_images = fake_images.shape[0]
 
         discriminator_input: DiscriminatorInput = {
-            'image': torch.cat([images, fake_images], dim=0),
-            'class': torch.cat([labels, fake_labels], dim=0),
+            "image": torch.cat([images, fake_images], dim=0),
+            "class": torch.cat([labels, fake_labels], dim=0),
         }
         discriminator_target = torch.tensor(
-            [[1.]] * nb_images + [[0.]] * nb_fake_images, device=device)
+            [[1.0]] * nb_images + [[0.0]] * nb_fake_images, device=device
+        )
 
-        discriminator_output = model(discriminator_input, network='discriminator')
+        discriminator_output = model(discriminator_input, network="discriminator")
 
         # Calculate discriminator loss.
-        loss = F.binary_cross_entropy_with_logits(discriminator_output,
-                                                  discriminator_target)
+        loss = F.binary_cross_entropy_with_logits(
+            discriminator_output, discriminator_target
+        )
 
         return loss, discriminator_output, discriminator_target
 
 
 signal_length = 128
 model = GarmentConditionalGAN(signal_length, len(classes))
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = "cuda" if torch.cuda.is_available() else "cpu"
 loop = TrainingLoop(
     model,
     step=GarmentConditionalGANTrainingStep(
@@ -423,7 +445,7 @@ loop = TrainingLoop(
 _ = loop.fit(
     training_loader,
     validation_loader,
-    epochs=1 if device == 'cpu' else 100,
+    epochs=1 if device == "cpu" else 100,
 )
 
 # %% [markdown]
@@ -441,17 +463,18 @@ fig, axes = plt.subplots(
 for i in range(len(classes)):
     with torch.no_grad():
         clazz = F.one_hot(
-            torch.tensor([i] * n_images_per_class), num_classes=len(classes)).to(device)
+            torch.tensor([i] * n_images_per_class), num_classes=len(classes)
+        ).to(device)
         signal = torch.randn((n_images_per_class, signal_length), device=device)
 
         # Feed into the generator.
-        input: GeneratorInput = {'class': clazz, 'signal': signal}
-        fake_images = model(input, network='generator')
+        input: GeneratorInput = {"class": clazz, "signal": signal}
+        fake_images = model(input, network="generator")
         fake_images = fake_images.cpu()
 
     # Show these fake images.
     for ax, img in zip(axes[i], fake_images):
-        ax.imshow(img[0], cmap='gray')
+        ax.imshow(img[0], cmap="gray")
 
         # Don't show the ticks.
         ax.set_xticks([])

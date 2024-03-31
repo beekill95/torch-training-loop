@@ -8,13 +8,13 @@ from .training_loops import TrainingLoop
 from .training_loops import TrainingStep
 
 try:
-    __version__ = version('torch_training_loop')
+    __version__ = version("torch_training_loop")
 except PackageNotFoundError:
     # If the package is not installed, don't add __version__
     pass
 
 __all__ = (
-    'SimpleTrainingStep',
-    'TrainingLoop',
-    'TrainingStep',
+    "SimpleTrainingStep",
+    "TrainingLoop",
+    "TrainingStep",
 )

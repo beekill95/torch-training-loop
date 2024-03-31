@@ -10,7 +10,7 @@ from torch import nn
 from ..exceptions import StopTraining
 from .callback import Callback
 
-_LOGGER = logging.getLogger('EarlyStopping')
+_LOGGER = logging.getLogger("EarlyStopping")
 
 
 class EarlyStopping(Callback[nn.Module]):
@@ -18,7 +18,7 @@ class EarlyStopping(Callback[nn.Module]):
     def __init__(
         self,
         monitor: str,
-        mode: Literal['min', 'max'],
+        mode: Literal["min", "max"],
         patience: int,
         restore_best_weights: bool = True,
     ):
@@ -48,13 +48,14 @@ class EarlyStopping(Callback[nn.Module]):
 
     def on_training_begin(self):
         self._wait = 0
-        self._best_value = -np.inf if self._mode == 'max' else np.inf
+        self._best_value = -np.inf if self._mode == "max" else np.inf
         self._best_weights = None
 
     def on_epoch_end(self, epoch: int, logs: dict[str, float]):
         if self._monitor not in logs:
-            _LOGGER.warning(f'Metric `{self._monitor}` doesnt exist, '
-                            'early stopping wont work!')
+            _LOGGER.warning(
+                f"Metric `{self._monitor}` doesnt exist, " "early stopping wont work!"
+            )
             return
 
         value = logs[self._monitor]
@@ -70,8 +71,10 @@ class EarlyStopping(Callback[nn.Module]):
             self._wait += 1
 
         if self._wait > self._patience:
-            _LOGGER.info(f'Training doesnt improve model performance on {self._monitor}'
-                         'for the last {self._wait} epochs. Early stopping!')
+            _LOGGER.info(
+                f"Training doesnt improve model performance on {self._monitor}"
+                "for the last {self._wait} epochs. Early stopping!"
+            )
             raise StopTraining()
 
     def on_training_end(self):
@@ -80,5 +83,8 @@ class EarlyStopping(Callback[nn.Module]):
             self.model.load_state_dict(self._best_weights)
 
     def _is_better_than_best_value(self, value):
-        return (value >= self._best_value
-                if self._mode == 'max' else value <= self._best_value)
+        return (
+            value >= self._best_value
+            if self._mode == "max"
+            else value <= self._best_value
+        )
