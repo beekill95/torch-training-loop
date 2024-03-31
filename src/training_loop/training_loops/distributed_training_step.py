@@ -24,8 +24,9 @@ class DistributedTrainingStep(Generic[TData], abc.ABC):
         pass
 
     @abc.abstractmethod
-    def train_step_distributed(self, model: DDP, data: TData,
-                               device: TDevice) -> dict[str, float]:
+    def train_step_distributed(
+        self, model: DDP, data: TData, device: TDevice
+    ) -> dict[str, float]:
         """
         Perform one train step over the given data. Subclasses
         should implement this method to perform feed-forward
@@ -47,8 +48,9 @@ class DistributedTrainingStep(Generic[TData], abc.ABC):
 
     @abc.abstractmethod
     @torch.no_grad()
-    def val_step_distributed(self, model: DDP, data: TData,
-                             device: TDevice) -> dict[str, float]:
+    def val_step_distributed(
+        self, model: DDP, data: TData, device: TDevice
+    ) -> dict[str, float]:
         """
         Perform one validation over the given data. Subclasses
         should implement this method to perform feed-forward

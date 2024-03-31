@@ -18,8 +18,9 @@ class TrainingStep(Generic[TModel, TData], abc.ABC):
         pass
 
     @abc.abstractmethod
-    def train_step(self, model: TModel, data: TData,
-                   device: TDevice) -> dict[str, float]:
+    def train_step(
+        self, model: TModel, data: TData, device: TDevice
+    ) -> dict[str, float]:
         """
         Perform one train step over the given data. Subclasses
         should implement this method to perform feed-forward

@@ -16,12 +16,12 @@ class ProgressReporter(AbstractContextManager):
     """
 
     def __init__(
-            self,
-            epoch: int,
-            *,
-            total_epochs: int,
-            total_batches: int | float = float("inf"),
-            verbose: int = 1,
+        self,
+        epoch: int,
+        *,
+        total_epochs: int,
+        total_batches: int | float = float("inf"),
+        verbose: int = 1,
     ) -> None:
         """
         Construct progress reporter instance for an epoch.
@@ -43,21 +43,20 @@ class ProgressReporter(AbstractContextManager):
         self._epochs = total_epochs
         self._verbose = verbose
 
+        self._bar: tqdm | None = None
         if verbose == 1:
             self._bar = tqdm(total=total_batches, desc=self._get_epoch_description())
-        else:
-            self._bar = None
 
     def __enter__(self):
         return self
 
     def __exit__(
-            self,
-            exc_type: type[BaseException] | None,  # noqa
-            exc_value: BaseException | None,  # noqa
-            traceback: TracebackType | None,  # noqa
+        self,
+        exc_type: type[BaseException] | None,  # noqa
+        exc_value: BaseException | None,  # noqa
+        traceback: TracebackType | None,  # noqa
     ) -> bool | None:
-        self.close_report()
+        return self.close_report()
 
     def next_batch(self):
         if self._bar:

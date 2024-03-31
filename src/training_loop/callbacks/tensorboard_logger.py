@@ -7,10 +7,12 @@ from .callback import Callback
 
 class TensorBoardLogger(Callback):
 
-    def __init__(self,
-                 logdir: str | None = None,
-                 update_freq: int = 1,
-                 update_freq_unit: Literal['epoch', 'batch'] = 'epoch'):
+    def __init__(
+        self,
+        logdir: str | None = None,
+        update_freq: int = 1,
+        update_freq_unit: Literal["epoch", "batch"] = "epoch",
+    ):
         super().__init__()
         self._logdir = logdir
         self._update_freq = update_freq
@@ -24,23 +26,23 @@ class TensorBoardLogger(Callback):
         self._global_step = 0
 
     def on_train_batch_end(self, batch: int, logs: dict[str, float]):
-        if self._update_freq_unit == 'epoch':
+        if self._update_freq_unit == "epoch":
             return
 
         if self._wait == 0:
             self._writer.add_scalars(
-                'batch',
+                "batch",
                 logs,
                 global_step=self._global_step,
             )
 
     def on_val_batch_end(self, batch: int, logs: dict[str, float]):
-        if self._update_freq_unit == 'epoch':
+        if self._update_freq_unit == "epoch":
             return
 
         if self._wait == 0:
             self._writer.add_scalars(
-                'batch',
+                "batch",
                 logs,
                 global_step=self._global_step,
             )
@@ -49,12 +51,12 @@ class TensorBoardLogger(Callback):
         self._update_counters()
 
     def on_epoch_end(self, epoch: int, logs: dict[str, float]):
-        if self._update_freq_unit == 'batch':
+        if self._update_freq_unit == "batch":
             return
 
         if self._wait == 0:
             self._writer.add_scalars(
-                'epoch',
+                "epoch",
                 logs,
                 global_step=self._global_step,
             )
