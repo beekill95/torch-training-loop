@@ -19,8 +19,8 @@ class ModelCheckpoint(Callback[nn.Module]):
         *,
         save_weights_only: bool = True,
         save_best_only: bool = True,
-        monitor: str | None = 'val_loss',
-        mode: Literal['min', 'max'] | None = 'min',
+        monitor: str | None = "val_loss",
+        mode: Literal["min", "max"] | None = "min",
     ):
         """
         Save model at the end of every epoch.
@@ -56,14 +56,14 @@ class ModelCheckpoint(Callback[nn.Module]):
         self._mode = mode
 
     def on_training_begin(self):
-        self._best_value = np.inf if self._mode == 'min' else -np.inf
+        self._best_value = np.inf if self._mode == "min" else -np.inf
 
     def on_epoch_end(self, epoch: int, logs: dict[str, float]):
         if not self._save_best_only:
             self._save_model(epoch, logs)
         else:
             if self._monitor not in logs:
-                raise ValueError(f'Metric {self._monitor} doesnt exist in logs.')
+                raise ValueError(f"Metric {self._monitor} doesnt exist in logs.")
 
             value = logs[self._monitor]
             if self._is_better_than_best_value(value):
@@ -82,7 +82,7 @@ class ModelCheckpoint(Callback[nn.Module]):
             torch.save(self.model, filepath)
 
     def _is_better_than_best_value(self, value):
-        if self._mode == 'min':
+        if self._mode == "min":
             return value <= self._best_value
         else:
             return value >= self._best_value

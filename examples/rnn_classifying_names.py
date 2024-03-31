@@ -25,23 +25,23 @@ from training_loop import TrainingLoop
 
 # %%
 # Download and extract data files.
-if not os.path.isdir('data/names'):
+if not os.path.isdir("data/names"):
     import urllib.request
     import zipfile
 
-    data_url = 'https://download.pytorch.org/tutorial/data.zip'
-    print(f'No data found. Downloading and extracting data from url: {data_url}')
-    urllib.request.urlretrieve(data_url, 'data/data.zip')
+    data_url = "https://download.pytorch.org/tutorial/data.zip"
+    print(f"No data found. Downloading and extracting data from url: {data_url}")
+    urllib.request.urlretrieve(data_url, "data/data.zip")
 
-    with zipfile.ZipFile('data/data.zip') as file:
-        file.extractall('./')
+    with zipfile.ZipFile("data/data.zip") as file:
+        file.extractall("./")
 
 
 def findFiles(path):
     return glob.glob(path)
 
 
-print(findFiles('data/names/*.txt'))
+print(findFiles("data/names/*.txt"))
 
 all_letters = string.ascii_letters + " .,;'"
 n_letters = len(all_letters)
@@ -50,12 +50,14 @@ n_letters = len(all_letters)
 # Turn a Unicode string to plain ASCII,
 # thanks to https://stackoverflow.com/a/518232/2809427
 def unicodeToAscii(s):
-    return ''.join(
-        c for c in unicodedata.normalize('NFD', s)
-        if unicodedata.category(c) != 'Mn' and c in all_letters)
+    return "".join(
+        c
+        for c in unicodedata.normalize("NFD", s)
+        if unicodedata.category(c) != "Mn" and c in all_letters
+    )
 
 
-print(unicodeToAscii('Ślusàrski'))
+print(unicodeToAscii("Ślusàrski"))
 
 # Build the category_lines dictionary, a list of names per language
 category_lines = {}
@@ -64,12 +66,12 @@ all_categories = []
 
 # Read a file and split into lines
 def readLines(filename):
-    with open(filename, encoding='utf-8') as infile:
-        lines = infile.read().strip().split('\n')
+    with open(filename, encoding="utf-8") as infile:
+        lines = infile.read().strip().split("\n")
         return [unicodeToAscii(line) for line in lines]
 
 
-for filename in findFiles('data/names/*.txt'):
+for filename in findFiles("data/names/*.txt"):
     category = os.path.splitext(os.path.basename(filename))[0]
     all_categories.append(category)
     lines = readLines(filename)
@@ -77,7 +79,7 @@ for filename in findFiles('data/names/*.txt'):
 
 n_categories = len(all_categories)
 
-print(category_lines['Italian'][:5])
+print(category_lines["Italian"][:5])
 
 
 # %%
@@ -103,9 +105,9 @@ def lineToTensor(line):
     return tensor
 
 
-print(letterToTensor('J'))
+print(letterToTensor("J"))
 
-print(lineToTensor('Jones').size())
+print(lineToTensor("Jones").size())
 
 # %% [markdown]
 # Here, we deviate a bit from the original tutorial,
@@ -121,15 +123,18 @@ class InternationalNamesDataset(Dataset):
 
         categories = list(category_lines.keys())
         self.X = sum(
-            ([lineToTensor(line)
-              for line in lines]
-             for lines in category_lines.values()),
+            (
+                [lineToTensor(line) for line in lines]
+                for lines in category_lines.values()
+            ),
             [],
         )
 
         self.y = sum(
-            ([categories.index(category)] * len(lines)
-             for category, lines in category_lines.items()),
+            (
+                [categories.index(category)] * len(lines)
+                for category, lines in category_lines.items()
+            ),
             [],
         )
 
@@ -140,22 +145,25 @@ class InternationalNamesDataset(Dataset):
         return self.X[index], self.y[index]
 
 
-def split_train_validation(category_lines: dict[str, Sequence[str]],
-                           val_percentage: float = 0.2):
+def split_train_validation(
+    category_lines: dict[str, Sequence[str]], val_percentage: float = 0.2
+):
     train_category_lines, val_category_lines = {}, {}
 
     for category, lines in category_lines.items():
-        nb_train_lines = int(len(lines) * (1. - val_percentage))
+        nb_train_lines = int(len(lines) * (1.0 - val_percentage))
         train_category_lines[category] = lines[:nb_train_lines]
         val_category_lines[category] = lines[nb_train_lines:]
 
-    return (InternationalNamesDataset(train_category_lines),
-            InternationalNamesDataset(val_category_lines))
+    return (
+        InternationalNamesDataset(train_category_lines),
+        InternationalNamesDataset(val_category_lines),
+    )
 
 
 train_ds, val_ds = split_train_validation(category_lines, 0.2)
-print('Train item 0: ', train_ds[0], train_ds[0][0].shape)
-print('Val item 0: ', val_ds[0], val_ds[0][0].shape)
+print("Train item 0: ", train_ds[0], train_ds[0][0].shape)
+print("Val item 0: ", val_ds[0], val_ds[0][0].shape)
 
 
 # %%
@@ -187,8 +195,8 @@ val_dl = DataLoader(
 )
 
 for lines, labels in train_dl:
-    print('lines', lines)
-    print('labels', labels)
+    print("lines", lines)
+    print("labels", labels)
     break
 
 # %% [markdown]
@@ -226,20 +234,20 @@ class RNN(nn.Module):
 n_hidden = 128
 rnn = RNN(n_letters, n_hidden, n_categories)
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = "cuda" if torch.cuda.is_available() else "cpu"
 loop = TrainingLoop(
     rnn,
     step=SimpleTrainingStep(
         optimizer_fn=lambda params: Adam(params, lr=0.002),
         loss=nn.NLLLoss(),
-        metrics=('accuracy', MulticlassAccuracy(num_classes=n_categories)),
+        metrics=("accuracy", MulticlassAccuracy(num_classes=n_categories)),
     ),
     device=device,
 )
 train_history, val_history = loop.fit(train_dl, val_dl, epochs=1)
 
 # %%
-train_history.query('batch > -1').plot(x='batch', y='loss')
+train_history.query("batch > -1").plot(x="batch", y="loss")
 
 # %% [markdown]
 # Evaluating the Results.
@@ -265,8 +273,8 @@ cax = ax.matshow(confusion_matrix.numpy())
 fig.colorbar(cax)
 
 # Set up axes
-ax.set_xticklabels([''] + all_categories, rotation=90)
-ax.set_yticklabels([''] + all_categories)
+ax.set_xticklabels([""] + all_categories, rotation=90)
+ax.set_yticklabels([""] + all_categories)
 
 # Force label at every tick
 ax.xaxis.set_major_locator(ticker.MultipleLocator(1))

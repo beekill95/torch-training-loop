@@ -13,20 +13,22 @@ from training_loop import TrainingLoop
 # Tutorial from Pytorch:
 # https://pytorch.org/tutorials/beginner/introyt/trainingyt.html#the-training-loop
 
-transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize((0.5,), (0.5,)),
-])
+transform = transforms.Compose(
+    [
+        transforms.ToTensor(),
+        transforms.Normalize((0.5,), (0.5,)),
+    ]
+)
 
 # Create datasets for training & validation, download if necessary
 training_set = torchvision.datasets.FashionMNIST(
-    './data',
+    "./data",
     train=True,
     transform=transform,
     download=True,
 )
 validation_set = torchvision.datasets.FashionMNIST(
-    './data',
+    "./data",
     train=False,
     transform=transform,
     download=True,
@@ -46,21 +48,21 @@ validation_loader = torch.utils.data.DataLoader(
 
 # Class labels
 classes = (
-    'T-shirt/top',
-    'Trouser',
-    'Pullover',
-    'Dress',
-    'Coat',
-    'Sandal',
-    'Shirt',
-    'Sneaker',
-    'Bag',
-    'Ankle Boot',
+    "T-shirt/top",
+    "Trouser",
+    "Pullover",
+    "Dress",
+    "Coat",
+    "Sandal",
+    "Shirt",
+    "Sneaker",
+    "Bag",
+    "Ankle Boot",
 )
 
 # Report split sizes
-print(f'Training set has {len(training_set)} instances')
-print(f'Validation set has {len(validation_set)} instances')
+print(f"Training set has {len(training_set)} instances")
+print(f"Validation set has {len(validation_set)} instances")
 
 
 # Model.
@@ -93,9 +95,9 @@ loop = TrainingLoop(
     step=SimpleTrainingStep(
         optimizer_fn=lambda params: SGD(params, lr=0.001, momentum=0.9),
         loss=torch.nn.CrossEntropyLoss(),
-        metrics=('accuracy', MulticlassAccuracy(num_classes=len(classes))),
+        metrics=("accuracy", MulticlassAccuracy(num_classes=len(classes))),
     ),
-    device='cuda' if torch.cuda.is_available() else 'cpu',
+    device="cuda" if torch.cuda.is_available() else "cpu",
 )
 loop.fit(
     training_loader,

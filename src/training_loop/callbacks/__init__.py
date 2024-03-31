@@ -6,8 +6,8 @@ from .model_checkpoint import ModelCheckpoint
 from .tensorboard_logger import TensorBoardLogger
 
 __all__ = (
-    'Callback',
-    'EarlyStopping',
-    'ModelCheckpoint',
-    'TensorBoardLogger',
+    "Callback",
+    "EarlyStopping",
+    "ModelCheckpoint",
+    "TensorBoardLogger",
 )

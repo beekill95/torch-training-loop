@@ -28,38 +28,44 @@ class Callback(Generic[TModel]):
     def model(self):
         return self._loop.model if self._loop is not None else None
 
-    def on(self, event: Literal[
-        'training_begin',
-        'training_end',
-        'epoch_begin',
-        'epoch_end',
-        'train_batch_begin',
-        'train_batch_end',
-        'val_batch_begin',
-        'val_batch_end',
-    ], **kwargs):
+    def on(
+        self,
+        event: Literal[
+            "training_begin",
+            "training_end",
+            "epoch_begin",
+            "epoch_end",
+            "train_batch_begin",
+            "train_batch_end",
+            "val_batch_begin",
+            "val_batch_end",
+        ],
+        **kwargs,
+    ):
         handlers = {
-            'training_begin': self.on_training_begin,
-            'training_end': self.on_training_end,
-            'epoch_begin': self.on_epoch_begin,
-            'epoch_end': self.on_epoch_end,
-            'train_batch_begin': self.on_train_batch_begin,
-            'train_batch_end': self.on_train_batch_end,
-            'val_batch_begin': self.on_val_batch_begin,
-            'val_batch_end': self.on_val_batch_end,
+            "training_begin": self.on_training_begin,
+            "training_end": self.on_training_end,
+            "epoch_begin": self.on_epoch_begin,
+            "epoch_end": self.on_epoch_end,
+            "train_batch_begin": self.on_train_batch_begin,
+            "train_batch_end": self.on_train_batch_end,
+            "val_batch_begin": self.on_val_batch_begin,
+            "val_batch_end": self.on_val_batch_end,
         }
 
         if event not in handlers:
-            raise ValueError(f'Unknown event: {event=}.')
+            raise ValueError(f"Unknown event: {event=}.")
 
         try:
             handlers[event](**kwargs)
         except StopTraining as e:
-            if event == 'epoch_end':
+            if event == "epoch_end":
                 raise e
 
-            print('WARN: StopTraining exception should only be raised'
-                  ' in `on_epoch_end` callback.')
+            print(
+                "WARN: StopTraining exception should only be raised"
+                " in `on_epoch_end` callback."
+            )
 
     def on_training_begin(self):
         pass

@@ -8,8 +8,8 @@ import torch
 from torch import nn
 
 # Generics .
-TModel = TypeVar('TModel', bound=nn.Module)
-TData = TypeVar('TData')
+TModel = TypeVar("TModel", bound=nn.Module)
+TData = TypeVar("TData")
 
 # Possible device types.
 # If it is an int, then it represents the ordinal of the cuda device.

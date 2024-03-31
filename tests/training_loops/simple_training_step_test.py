@@ -23,10 +23,10 @@ class TrainingStepInstances:
         self.optim = MagicMock(optim.Adam)
         self.optim.return_value = self.optim
 
-        self.loss_fn = {'f1': MagicMock(nn.L1Loss)}
-        self.loss_weights = {'f1': 0.1}
+        self.loss_fn = {"f1": MagicMock(nn.L1Loss)}
+        self.loss_weights = {"f1": 0.1}
 
-        self.metrics = ('metric', MagicMock(Metric))
+        self.metrics = ("metric", MagicMock(Metric))
         self.device = MagicMock(torch.device)
 
     def create_step(self):
@@ -39,32 +39,34 @@ class TrainingStepInstances:
         )
 
 
-@patch('training_loop.training_loops.simple_training_step.move_metrics_to_device')
-@patch('training_loop.training_loops.simple_training_step.clone_metrics')
+@patch("training_loop.training_loops.simple_training_step.move_metrics_to_device")
+@patch("training_loop.training_loops.simple_training_step.clone_metrics")
 def test_loop_init(clone_metrics, move_metrics):
     instances = TrainingStepInstances()
     parameters = (1, 2, 3)
     instances.model.parameters.return_value = parameters
 
-    fake_metrics = ('fake_return', MagicMock(Metric))
+    fake_metrics = ("fake_return", MagicMock(Metric))
     clone_metrics.return_value = fake_metrics
     step = instances.create_step()
 
     # Metrics are cloned.
     clone_metrics.assert_called_once_with(instances.metrics)
 
-    with patch('training_loop.training_loops.simple_training_step.Mean'):
+    with patch("training_loop.training_loops.simple_training_step.Mean"):
         step.init(instances.model, instances.device)
 
     # Optimizer initialized.
     instances.optim.assert_called_once_with(parameters)
 
     # Metrics are moved to the correct device.
-    move_metrics.assert_has_calls([
-        call(instances.metrics, instances.device),
-        call(fake_metrics, instances.device),
-    ],
-                                  any_order=False)
+    move_metrics.assert_has_calls(
+        [
+            call(instances.metrics, instances.device),
+            call(fake_metrics, instances.device),
+        ],
+        any_order=False,
+    )
 
 
 def test_create_step():
@@ -78,14 +80,14 @@ def test_create_step():
     SimpleTrainingStep(
         optimizer_fn=lambda params: optim.Adam(params, lr=1e-4),
         loss=nn.MSELoss(),
-        metrics=('mean', Mean()),
+        metrics=("mean", Mean()),
     )
 
     # Create step with both metrics and loss weights.
     SimpleTrainingStep(
         optimizer_fn=lambda params: optim.Adam(params, lr=1e-4),
         loss=(nn.MSELoss(), nn.L1Loss()),
-        metrics=('mean', Mean()),
+        metrics=("mean", Mean()),
         loss_weights=(0.5, 0.25),
     )
 
@@ -93,19 +95,23 @@ def test_create_step():
 class TestTraining:
 
     train_data = (
-        torch.tensor(np.asarray([
-            [1., 2., 3.],
-            [2., 3., 4.],
-        ])),
-        torch.tensor(np.asarray([1., 0.])),
+        torch.tensor(
+            np.asarray(
+                [
+                    [1.0, 2.0, 3.0],
+                    [2.0, 3.0, 4.0],
+                ]
+            )
+        ),
+        torch.tensor(np.asarray([1.0, 0.0])),
     )
 
-    @patch('training_loop.training_loops.simple_training_step.Mean')
-    @patch('training_loop.training_loops.simple_training_step.move_metrics_to_device')
-    @patch('training_loop.training_loops.simple_training_step.compute_metrics')
-    @patch('training_loop.training_loops.simple_training_step.update_metrics')
-    @patch('training_loop.training_loops.simple_training_step.calc_loss')
-    @patch('training_loop.training_loops.simple_training_step.transfer_data')
+    @patch("training_loop.training_loops.simple_training_step.Mean")
+    @patch("training_loop.training_loops.simple_training_step.move_metrics_to_device")
+    @patch("training_loop.training_loops.simple_training_step.compute_metrics")
+    @patch("training_loop.training_loops.simple_training_step.update_metrics")
+    @patch("training_loop.training_loops.simple_training_step.calc_loss")
+    @patch("training_loop.training_loops.simple_training_step.transfer_data")
     def test_train_step(
         self,
         transfer_data,
@@ -127,7 +133,7 @@ class TestTraining:
         metric_mean.return_value = metric_mean
         metric_mean.compute().detach().cpu().item.return_value = 7.0
 
-        compute_metrics.return_value = {'f1': 0.2}
+        compute_metrics.return_value = {"f1": 0.2}
 
         transfer_data.side_effect = lambda x, _: x
         move_metrics.side_effect = lambda x, _: x
@@ -143,7 +149,8 @@ class TestTraining:
 
         # Transfer data to device.
         transfer_data.assert_has_calls(
-            [call(d, instances.device) for d in self.train_data])
+            [call(d, instances.device) for d in self.train_data]
+        )
 
         # Model was called with X.
         instances.model.assert_called_once_with(self.train_data[0])
@@ -172,27 +179,31 @@ class TestTraining:
 
         # Compute train metrics and return.
         compute_metrics.assert_called_once_with(instances.metrics)
-        assert logs == {'loss': 7.0, 'f1': 0.2}
+        assert logs == {"loss": 7.0, "f1": 0.2}
 
 
 class TestValidation:
     val_data = (
-        torch.tensor(np.asarray([
-            [1., 2., 3.],
-            [2., 3., 4.],
-        ])),
-        torch.tensor(np.asarray([1., 0.])),
+        torch.tensor(
+            np.asarray(
+                [
+                    [1.0, 2.0, 3.0],
+                    [2.0, 3.0, 4.0],
+                ]
+            )
+        ),
+        torch.tensor(np.asarray([1.0, 0.0])),
     )
 
     val_metrics = MagicMock(Metric)
 
-    @patch('training_loop.training_loops.simple_training_step.Mean')
-    @patch('training_loop.training_loops.simple_training_step.move_metrics_to_device')
-    @patch('training_loop.training_loops.simple_training_step.compute_metrics')
-    @patch('training_loop.training_loops.simple_training_step.update_metrics')
-    @patch('training_loop.training_loops.simple_training_step.calc_loss')
-    @patch('training_loop.training_loops.simple_training_step.transfer_data')
-    @patch('training_loop.training_loops.simple_training_step.clone_metrics')
+    @patch("training_loop.training_loops.simple_training_step.Mean")
+    @patch("training_loop.training_loops.simple_training_step.move_metrics_to_device")
+    @patch("training_loop.training_loops.simple_training_step.compute_metrics")
+    @patch("training_loop.training_loops.simple_training_step.update_metrics")
+    @patch("training_loop.training_loops.simple_training_step.calc_loss")
+    @patch("training_loop.training_loops.simple_training_step.transfer_data")
+    @patch("training_loop.training_loops.simple_training_step.clone_metrics")
     def test_val_step(
         self,
         clone_metrics,
@@ -215,7 +226,7 @@ class TestValidation:
         metric_mean.return_value = metric_mean
         metric_mean.compute().detach().cpu().item.return_value = 7.0
 
-        compute_metrics.return_value = {'f1': 0.2}
+        compute_metrics.return_value = {"f1": 0.2}
 
         clone_metrics.return_value = (instances.metrics[0], self.val_metrics)
 
@@ -232,7 +243,8 @@ class TestValidation:
 
         # Transfer data to device.
         transfer_data.assert_has_calls(
-            [call(d, instances.device) for d in self.val_data])
+            [call(d, instances.device) for d in self.val_data]
+        )
 
         # Model was called with X.
         instances.model.assert_called_once_with(self.val_data[0])
@@ -261,5 +273,6 @@ class TestValidation:
 
         # Compute train metrics and return.
         compute_metrics.assert_called_once_with(
-            (instances.metrics[0], self.val_metrics))
-        assert logs == {'loss': 7.0, 'f1': 0.2}
+            (instances.metrics[0], self.val_metrics)
+        )
+        assert logs == {"loss": 7.0, "f1": 0.2}

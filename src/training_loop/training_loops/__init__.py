@@ -5,7 +5,7 @@ from .training_loop import TrainingLoop
 from .training_step import TrainingStep
 
 __all__ = (
-    'SimpleTrainingStep',
-    'TrainingLoop',
-    'TrainingStep',
+    "SimpleTrainingStep",
+    "TrainingLoop",
+    "TrainingStep",
 )
