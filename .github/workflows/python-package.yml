@@ -75,17 +75,21 @@ jobs:
         OS_VAR: ${{ runner.os }}
     - name: Install project
       run: poetry install --no-interaction --only-root
+    - name: Static checks
+      if: matrix.python-version == "3.10"
+      run: |
+        poetry run pre-commit check --all-files
+        poetry run doit type_check
     # - name: Lint with flake8
     #   run: |
     #     # stop the build if there are Python syntax errors or undefined names
     #     flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
     #     # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
     #     flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Test with pytest
+    - name: Unit tests
       uses: nick-fields/retry@v2
       with:
         shell: bash
         timeout_minutes: 5
-        command: poetry run pytest --reruns 5 --reruns-delay 1
-        new_command_on_retry: poetry run pytest --reruns 5 --reruns-delay 1 --last-failed
+        command: poetry run doit test
         max_attempts: 5
