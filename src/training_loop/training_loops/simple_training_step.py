@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from collections import ChainMap
-from typing import Callable, Self
+from typing import Callable
 from typing import Dict
 from typing import Iterator
 from typing import List
+from typing import Self
 from typing import Sequence
-from typing import TypedDict
 from typing import Tuple
 from typing import TYPE_CHECKING
+from typing import TypedDict
 from typing import Union
 
 import torch
@@ -560,9 +561,9 @@ def calc_loss(
                 loss_fns[key],
                 y_pred=y_pred[key],
                 y_true=y_true[key],
-                sample_weights=sample_weights[key]
-                if sample_weights is not None
-                else None,
+                sample_weights=(
+                    sample_weights[key] if sample_weights is not None else None
+                ),
                 loss_weights=loss_weights[key] if loss_weights is not None else None,
             )
             for key in loss_fns.keys()
